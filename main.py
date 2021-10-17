@@ -7,10 +7,12 @@
 import mido
 from mido import MidiFile
 import librosa
+import pandas as pd
 
-midi_file = r'C:\Users\User\Documents\GitHub\DTW\Duepree08XP.MID'
+midi_file = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_Impromptu.mid'
 
 mid = MidiFile(midi_file, clip=True)
+mid.ticks_per_beat
 print(mid)
 
 for track in mid.tracks:
@@ -18,6 +20,62 @@ for track in mid.tracks:
 
 for msg in mid.tracks[0][:15]:
     print(msg)
+
+def midi_to_df(midi_file:str) -> pd.DataFrame:
+    """
+        Reads a midi file and returns the content as a pd.DataFrame.\n
+        Ignores meta messages.
+
+        Args:
+            midi_file (str): filepath of the midi file
+    """
+    mid = MidiFile(midi_file, clip=True)
+    ticks_per_beat = mid.ticks_per_beat
+    df = pd.DataFrame(None, columns=[
+        "type", "channel", "track", "ticks_per_beat", "note", "velocity", 
+        "time (delta)", "time (abs)", "time (sec)"])
+    for track_num, track in enumerate(mid.tracks):
+        time_abs = 0
+        for msg in track:
+            try:
+                time_abs += msg.time
+                df = df.append(
+                    {
+                        "type":           msg.type,
+                        "channel":        msg.channel,
+                        "track":          track_num,
+                        "ticks_per_beat": ticks_per_beat,
+                        "note":           msg.note,
+                        "velocity":       msg.velocity,
+                        "time (delta)":   msg.time,
+                        "time (abs)":     time_abs,
+                        "time (sec)":     mido.tick2second(tick=time_abs, ticks_per_beat=ticks_per_beat, tempo=500000),
+                    },
+                    ignore_index=True
+                )
+                # out = "type: {type}, channel: {channel}, note: {note}, velocity: {velocity}, time: {time}".format(
+                #     type=msg.type, channel=msg.channel, note=msg.note, velocity=msg.velocity, time=msg.time)
+                # print(out)
+
+            except Exception:
+                pass
+    return df
+
+df = midi_to_df(midi_file=midi_file)
+df
+
+msg = mid.tracks[0][9]
+
+mid.tracks[0][1]
+mid.tracks[0][9]
+
+mid.tracks[0].clocks_per_click
+mid.tracks[0][9].type
+mid.tracks[0][9].note
+mid.tracks[0][9].bytes() # ?, note, velocity
+mid.tracks[0][9].channel
+mid.tracks[0][9].velocity
+mid.tracks[0][9].time
 
 
 # length in seconds of the entire midi
@@ -29,8 +87,13 @@ mid.filename
 mid.print_tracks()
 mid.ticks_per_beat
 
+# There are 88 beats per minute, and 24 MIDI clock ticks per beat.
+# That's 88 * 24 / 60 = 35.2 MIDI clocks per second.
+# So the timestamp in seconds is just the MIDI clock ticks divided by 35.2.
+
 
 # -----------------------------------------------------------------------------
+# creating a new midi file
 
 cv1 = MidiFile(midi_file, clip=True) # clip the velocity of all notes to 127 if they are higher than that.
 
@@ -46,11 +109,12 @@ for track in cv1.tracks:
 for track in duplicates:
     cv1.tracks.remove(track)
 
-midi_file_edited = r'C:\Users\User\Documents\GitHub\DTW\Duepree08XP_edited.MID'
+midi_file_edited = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_Impromptu_edited.MID'
 cv1.save(midi_file_edited)
 
 
 # -----------------------------------------------------------------------------
+# creating a new midi file from scratch
 
 import os
 
@@ -93,24 +157,48 @@ mido.Message.from_bytes(msg.bytes())
 
 
 # -----------------------------------------------------------------------------
-# working example
+# working example of creating a custom midi
+
+# -- global tempo --
+tempo = 500000
+ticks_per_beat = 96 # set to a higher value to reduce rounding errors
 
 file = MidiFile()
 track = mido.MidiTrack()
 file.tracks.append(track)
-file.ticks_per_beat = 480
+file.ticks_per_beat = ticks_per_beat
+
+# mido.tick2second(tick=10, ticks_per_beat=96, tempo=500000)
+# mido.second2tick(second=10, ticks_per_beat=96, tempo=500000)
 
 # events = []
 # mido.Message.from_bytes(msg.bytes()) # iterate through messages and adjust time
 
-msg = mido.Message('note_on', channel=0, note=30, velocity=32, time=100)
+t = round(mido.second2tick(second=0, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_on', channel=0, note=30, velocity=32, time=t)
 track.append(msg)
-msg = mido.Message('note_off', channel=0, note=30, velocity=32, time=500)
+t = round(mido.second2tick(second=10, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_off', channel=0, note=30, velocity=32, time=t)
 track.append(msg)
 
-msg = mido.Message('note_on', channel=0, note=40, velocity=80, time=600)
+t = round(mido.second2tick(second=6, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_on', channel=0, note=40, velocity=80, time=t)
 track.append(msg)
-msg = mido.Message('note_off', channel=0, note=40, velocity=80, time=1000)
+t = round(mido.second2tick(second=10, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_off', channel=0, note=40, velocity=80, time=t)
+track.append(msg)
+
+t = round(mido.second2tick(second=2, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_on', channel=0, note=40, velocity=80, time=t)
+track.append(msg)
+t = round(mido.second2tick(second=5, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_off', channel=0, note=40, velocity=80, time=t)
+track.append(msg)
+t = round(mido.second2tick(second=1, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_on', channel=0, note=40, velocity=80, time=t)
+track.append(msg)
+t = round(mido.second2tick(second=8, ticks_per_beat=ticks_per_beat, tempo=tempo))
+msg = mido.Message('note_off', channel=0, note=40, velocity=80, time=t)
 track.append(msg)
 
 path = r'C:\Users\User\Documents\GitHub\DTW\test.MID'
@@ -222,23 +310,29 @@ import librosa.display
 
 # -----------------------------------------------------------------------------
 
-# Visualize
-
-wav_file_true = r'C:\Users\User\Documents\GitHub\DTW\Grieg_Op12_No1_edited_original.wav'
+# -- load audio (real) --
+wav_file_true = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_Impromptu_in_A_Minor_REAL.wav'
 x_1, fs = librosa.load(wav_file_true)
-plt.figure(figsize=(16, 4))
-librosa.display.waveplot(x_1, sr=fs)
-plt.title('Grieg Op.12 No.1 (True)')
-plt.tight_layout()
-plt.show()
 
-wav_file_false = r'C:\Users\User\Documents\GitHub\DTW\Grieg_Op12_No1_edited_original_false.wav'
+# -- plot audio (real) --
+# plt.figure(figsize=(16, 4))
+# librosa.display.waveplot(x_1, sr=fs)
+# plt.title('Cataldi Impromptu A Minor (True)')
+# plt.tight_layout()
+# plt.show()
+
+
+# -- load audio (midi) --
+wav_file_false = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_ImpromptuMIDI.wav'
 x_2, fs = librosa.load(wav_file_false)
-plt.figure(figsize=(16, 4))
-librosa.display.waveplot(x_2, sr=fs)
-plt.title('Grieg Op.12 No.1 (False)')
-plt.tight_layout()
-plt.show()
+
+# -- plot audio (midi) --
+# plt.figure(figsize=(16, 4))
+# librosa.display.waveplot(x_2, sr=fs)
+# plt.title('Cataldi Impromptu A Minor (False)')
+# plt.tight_layout()
+# plt.show()
+
 
 # -----------------------------------------------------------------------------
 
@@ -246,61 +340,66 @@ plt.show()
 # List of different features:
 # (https://librosa.org/doc/main/generated/librosa.feature.chroma_stft.html)
 
+# -- define stepsize --
 n_fft = 4410
-hop_size = 2205
+hop_size = 2205 # default...          (0.1 sec steps)
+hop_size = 220  # reduced it a lot... (0.01 sec steps)
 
+# -- create features --
 x_1_chroma = librosa.feature.chroma_stft(y=x_1, sr=fs, tuning=0, norm=2,
                                          hop_length=hop_size, n_fft=n_fft)
 x_2_chroma = librosa.feature.chroma_stft(y=x_2, sr=fs, tuning=0, norm=2,
                                          hop_length=hop_size, n_fft=n_fft)
 
-plt.figure(figsize=(16, 8))
-plt.subplot(2, 1, 1)
-plt.title('Chroma Representation of $X_1$')
-librosa.display.specshow(x_1_chroma, x_axis='time',
-                         y_axis='chroma', cmap='gray_r', hop_length=hop_size)
-plt.colorbar()
-plt.subplot(2, 1, 2)
-plt.title('Chroma Representation of $X_2$')
-librosa.display.specshow(x_2_chroma, x_axis='time',
-                         y_axis='chroma', cmap='gray_r', hop_length=hop_size)
-plt.colorbar()
-plt.tight_layout()
-plt.show()
+# -- plot features --
+# plt.figure(figsize=(16, 8))
+# plt.subplot(2, 1, 1)
+# plt.title('Chroma Representation of $X_1$')
+# librosa.display.specshow(x_1_chroma, x_axis='time',
+#                          y_axis='chroma', cmap='gray_r', hop_length=hop_size)
+# plt.colorbar()
+# plt.subplot(2, 1, 2)
+# plt.title('Chroma Representation of $X_2$')
+# librosa.display.specshow(x_2_chroma, x_axis='time',
+#                          y_axis='chroma', cmap='gray_r', hop_length=hop_size)
+# plt.colorbar()
+# plt.tight_layout()
+# plt.show()
+
 
 # -----------------------------------------------------------------------------
 
+# -- compute DTW --
 D, wp = librosa.sequence.dtw(X=x_1_chroma, Y=x_2_chroma)
 wp_s = np.asarray(wp) * hop_size / fs
 
-fig = plt.figure(figsize=(10, 10))
-ax = fig.add_subplot(111)
-librosa.display.specshow(D, x_axis='time', y_axis='time',
-                         cmap='gray_r', hop_length=hop_size)
-imax = ax.imshow(D, cmap=plt.get_cmap('gray_r'),
-                 origin='lower', interpolation='nearest', aspect='auto')
-ax.plot(wp_s[:, 1], wp_s[:, 0], marker='o', color='r')
-plt.title('Warping Path on Acc. Cost Matrix $D$')
-plt.colorbar()
-plt.show()
+# -- plot dtw result --
+# fig = plt.figure(figsize=(10, 10))
+# ax = fig.add_subplot(111)
+# librosa.display.specshow(D, x_axis='time', y_axis='time',
+#                          cmap='gray_r', hop_length=hop_size)
+# imax = ax.imshow(D, cmap=plt.get_cmap('gray_r'),
+#                  origin='lower', interpolation='nearest', aspect='auto')
+# ax.plot(wp_s[:, 1], wp_s[:, 0], marker='o', color='r')
+# plt.title('Warping Path on Acc. Cost Matrix $D$')
+# plt.colorbar()
+# plt.show()
 
-wp_s[0:10]
-wp_s[10:20]
-wp_s[40:50]
-wp_s[140:150]
-wp_s[240:250]
-wp_s[340:350]
-wp_s[450:460]
-wp_s[600:610]
-wp_s[800:810]
-wp_s[900:910]
-wp_s[990:1000]
+# -- place in df --
+import pandas as pd
+df = pd.DataFrame(wp_s, columns=["audio", "midi"])
+df = df.reindex(index=df.index[::-1])
+df.reset_index(inplace=True, drop=True)
+df
 
+# -- num steps --
 len(wp_s)
 len(wp_s)/60
 fs
+
 # -----------------------------------------------------------------------------
 
+# -- plot dtw mappings between bot sequences --
 fig = plt.figure(figsize=(16, 8))
 
 # Plot x_1
@@ -341,6 +440,7 @@ plt.show()
 
 # -----------------------------------------------------------------------------
 
+# -- example from the docs --
 # Example from docs (https://librosa.org/doc/main/generated/librosa.sequence.dtw.html)
 
 import numpy as np
