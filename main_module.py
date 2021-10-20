@@ -4,12 +4,17 @@ from mido import MidiFile
 import pandas as pd
 import numpy as np
 import math
+import os
 
 import matplotlib
 import matplotlib.pyplot as plt
 
 import librosa
 import librosa.display
+import libfmp
+import libfmp.c3
+import libfmp.c7
+# import dtw
 
 from scipy.interpolate import interp1d
 
@@ -100,25 +105,64 @@ def get_dtw_plot(x_1, x_2, fs, hop_size, wp):
     plt.show()
 
 def get_time_mappings(wav_file_base, wav_file_warp, show_dtw_plot:bool=False) -> pd.DataFrame:
+
+    # Documentation / Variable names:
+    # x1 (np.ndarray): First signal
+    # x2 (np.ndarray): Second signal
+    # fs (scalar): Sampling rate of WAV files
+    # n_fft (int): Window size for computing STFT-based chroma features (Default value = 4410)
+    # hop_size (int): Hop size for computing STFT-based chroma features (Default value = 2205)
+    # ell (int): Smoothing length for computing CENS features (Default value = 21)
+    # d (int): Downsampling factor for computing CENS features (Default value = 5)
+
+    # L_smooth (int): Length of filter for enhancing SM (Default value = 12)
+    # tempo_rel_set (np.ndarray): Set of relative tempo values for enhancing SM (Default value = np.array([0.66, 0.81, 1, 1.22, 1.5]))
+    # shift_set (np.ndarray): Set of shift indices for enhancing SM (Default value = np.array([0]))
+    # strategy (str): Thresholding strategy for thresholding SM ('absolute', 'relative', 'local') (Default value = 'relative')
+    # scale (bool): If scale=True, then scaling of positive values to range [0,1] for thresholding SM (Default value = True)
+    # thresh (float): Treshold (meaning depends on strategy) (Default value = 0.15)
+    # penalty (float): Set values below treshold to value specified (Default value = -2.0)
+    # binarize (bool): Binarizes final matrix (positive: 1; otherwise: 0) (Default value = False)
+    
+    # X (np.ndarray): CENS feature sequence for first signal
+    # Y (np.ndarray): CENS feature sequence for second signal
+    # Fs_feature (scalar): Feature rate
+    # S_thresh (np.ndarray): Similarity matrix
+    # I (np.ndarray): Index matrix
+    
     # -- read data from file --
     x_1, fs = librosa.load(wav_file_base)
     x_2, fs = librosa.load(wav_file_warp)
 
     # -- define stepsize --
     n_fft = 4410
-    # hop_size = 8205
-    hop_size = 5205
-    # hop_size = 2205 # default...          (0.1 sec steps)
-    # hop_size = 220  # reduced it a lot... (0.01 sec steps)
+    hop_size = 2205
+    sigma = np.array([[1, 0], [0, 1], [1, 1]])
+    # sigma = np.array([[1, 1], [1, 2], [1, 2]])
 
     # -- create features --
-    x_1_chroma = librosa.feature.chroma_stft(y=x_1, sr=fs, tuning=0, norm=2,
+    X = librosa.feature.chroma_stft(y=x_1, sr=fs, tuning=0, norm=2,
                                             hop_length=hop_size, n_fft=n_fft)
-    x_2_chroma = librosa.feature.chroma_stft(y=x_2, sr=fs, tuning=0, norm=2,
+    Y = librosa.feature.chroma_stft(y=x_2, sr=fs, tuning=0, norm=2,
                                             hop_length=hop_size, n_fft=n_fft)
+    
+    # ell = 21
+    # d = 5
+    # X, Fs_cens = libfmp.c7.compute_cens_from_chromagram(X, ell=21, d=5)
+    # Y, Fs_cens = libfmp.c7.compute_cens_from_chromagram(Y, ell=21, d=5)
+
+    N, M = X.shape[1], Y.shape[1]
+    K = X.shape[0]
+    K; N; M # K = 12, N = 2006, M = 1631 || 12, 402, 327
+    
+    # C_FMP = libfmp.c3.compute_cost_matrix(X, Y, 'euclidean')
 
     # -- compute DTW --
-    D, wp = librosa.sequence.dtw(X=x_1_chroma, Y=x_2_chroma)#, metric='cosine')
+    # D, wp = librosa.sequence.dtw(X=X, Y=Y)
+    D, wp = librosa.sequence.dtw(X=X, Y=Y, subseq=False, metric="euclidian")
+    D, wp = librosa.sequence.dtw(X=X, Y=Y, subseq=False, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(X=X, Y=Y, step_sizes_sigma=sigma, subseq=False, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(C=C_FMP, step_sizes_sigma=sigma, subseq=False, metric="euclidian")
     wp_s = np.asarray(wp) * hop_size / fs
 
     # -- place in df --
@@ -170,7 +214,7 @@ def remap_function(df_mappings, x_colname:str="midi", y_colname:str="audio", sho
 
     return f3
 
-def apply_time_mappings(df_midi:pd.DataFrame, df_mappings:pd.DataFrame, df_midi_time_colname:str="time (sec)", x_colname_map="midi", y_colname_map="audio") -> pd.DataFrame:
+def apply_time_mappings(df_midi:pd.DataFrame, df_mappings:pd.DataFrame, df_midi_time_colname:str="time (sec)", x_colname_map="midi", y_colname_map="audio", show_remap_plot:bool=False) -> pd.DataFrame:
     """
         Adds a column to the pd.DataFrame with a  warped time for each event.
 
@@ -179,7 +223,7 @@ def apply_time_mappings(df_midi:pd.DataFrame, df_mappings:pd.DataFrame, df_midi_
             df_mappings (pd.DataFrame): dataset containing time mappings
     """
     # -- get function to remap time --
-    f = remap_function(df_mappings=df_mappings, x_colname=x_colname_map, y_colname=y_colname_map, show_plot=False)
+    f = remap_function(df_mappings=df_mappings, x_colname=x_colname_map, y_colname=y_colname_map, show_plot=show_remap_plot)
 
     # -- apply remapping --
     df_midi["time (sec) remapped"] = [f(x) for x in df_midi[df_midi_time_colname]]
@@ -235,20 +279,29 @@ def write_midi(df_midi:pd.DataFrame, outfile:str, time_colname:str="time (sec) r
 # -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    
+    # Step 0: define data dir
+    try:
+        data_dir = os.path(__file__)
+    except NameError:
+        data_dir = os.path.join(r'C:\Users\User\Documents\GitHub\DTW')
 
     # Step 1: reading midi file into a dataframe
-    midi_file = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_Impromptu.mid'
+    midi_file = os.path.join(data_dir, 'Cataldi_Impromptu.mid')
     df_midi = midi_to_df(midi_file=midi_file)
 
     # Step 2: DTW time mappings
-    wav_file_base = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_Impromptu_in_A_Minor_REAL.wav'
-    wav_file_warp = r'C:\Users\User\Documents\GitHub\DTW\Cataldi_ImpromptuMIDI.wav' # push notes to the front of the midi first, so the midi file & midi audio match.
+    wav_file_base = os.path.join(data_dir, 'Cataldi_Impromptu_in_A_Minor_REAL.wav')
+    wav_file_warp = os.path.join(data_dir, 'Cataldi_ImpromptuMIDI.wav')                 # to fix: push notes to the front of the midi first, so the midi file & midi audio match.
     df_mappings = get_time_mappings(wav_file_base=wav_file_base, wav_file_warp=wav_file_warp, show_dtw_plot=True)
 
     # Step 3: Apply DTW time mappings
-    # remap_function(df_mappings, x_colname="midi", y_colname="audio", show_plot=True)
-    df_midi = apply_time_mappings(df_midi=df_midi, df_mappings=df_mappings)
+    df_midi = apply_time_mappings(df_midi=df_midi, df_mappings=df_mappings, show_remap_plot=True)
 
     # Step 4: Write midi
     write_midi(df_midi=df_midi, outfile=r"C:\Users\User\Documents\GitHub\DTW\test.mid", time_colname="time (sec) remapped")
 
+#     raise ParameterError(
+# librosa.util.exceptions.ParameterError: scipy.spatial.distance.cdist returned an error.
+# Please provide your input in the form X.shape=(K, N) and Y.shape=(K, M).
+#  1-dimensional sequences should be reshaped to X.shape=(1, N) and Y.shape=(1, M).
