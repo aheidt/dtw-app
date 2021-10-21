@@ -104,7 +104,7 @@ def get_dtw_plot(x_1, x_2, fs, hop_size, wp):
     plt.tight_layout()
     plt.show()
 
-def get_time_mappings(wav_file_base, wav_file_warp, show_dtw_plot:bool=False) -> pd.DataFrame:
+def get_time_mappings(wav_file_base, wav_file_warp, show_dtw_plot:bool=False, show_chroma_features_plot:bool=False, show_warping_path_on_acc_cost:bool=False) -> pd.DataFrame:
 
     # Documentation / Variable names:
     # x1 (np.ndarray): First signal
@@ -137,45 +137,88 @@ def get_time_mappings(wav_file_base, wav_file_warp, show_dtw_plot:bool=False) ->
     # -- define stepsize --
     n_fft = 4410
     hop_size = 2205
-    sigma = np.array([[1, 0], [0, 1], [1, 1]])
-    # sigma = np.array([[1, 1], [1, 2], [1, 2]])
+    hop_size = 512
+    # sigma = np.array([[1, 0], [0, 1], [1, 1]])
+    # sigma = np.array([[1, 1], [2, 1], [1, 2]])
+    sigma = np.array([[1, 1], [4, 3], [3, 4], [1, 2], [2, 1]])
+    # sigma = np.array([[1, 1], [2, 1], [1, 2], [2, 2]])
+    # sigma = np.array([[1, 1], [2, 1], [1, 2], [2, 2], [2, 3], [3, 2]])
+    # sigma = np.array([[1, 1], [1, 3], [1, 3]])
+    # weights_mul = [1, 2, 2]
+    weights_add = [1, 2, 2, 3, 3]
 
     # -- create features --
-    X = librosa.feature.chroma_stft(y=x_1, sr=fs, tuning=0, norm=2,
-                                            hop_length=hop_size, n_fft=n_fft)
-    Y = librosa.feature.chroma_stft(y=x_2, sr=fs, tuning=0, norm=2,
-                                            hop_length=hop_size, n_fft=n_fft)
-    
+    # X_chroma = librosa.feature.chroma_stft(y=x_1, sr=fs, tuning=0, norm=2,
+    #                                         hop_length=hop_size, n_fft=n_fft)
+    # Y_chroma = librosa.feature.chroma_stft(y=x_2, sr=fs, tuning=0, norm=2,
+    #                                         hop_length=hop_size, n_fft=n_fft)
+    X_chroma = librosa.feature.chroma_cqt(y=x_1, sr=fs)
+    Y_chroma = librosa.feature.chroma_cqt(y=x_2, sr=fs)
+
     # ell = 21
     # d = 5
-    # X, Fs_cens = libfmp.c7.compute_cens_from_chromagram(X, ell=21, d=5)
-    # Y, Fs_cens = libfmp.c7.compute_cens_from_chromagram(Y, ell=21, d=5)
+    # X, Fs_cens = libfmp.c7.compute_cens_from_chromagram(X_chroma, ell=21, d=5)
+    # Y, Fs_cens = libfmp.c7.compute_cens_from_chromagram(Y_chroma, ell=21, d=5)
 
-    N, M = X.shape[1], Y.shape[1]
-    K = X.shape[0]
-    K; N; M # K = 12, N = 2006, M = 1631 || 12, 402, 327
+    # N, M = X.shape[1], Y.shape[1]
+    # K = X.shape[0]
+    # K; N; M # K = 12, N = 2006, M = 1631 || 12, 402, 327
     
-    # C_FMP = libfmp.c3.compute_cost_matrix(X, Y, 'euclidean')
+    C_FMP = libfmp.c3.compute_cost_matrix(X_chroma, Y_chroma, 'euclidean')
 
     # -- compute DTW --
-    # D, wp = librosa.sequence.dtw(X=X, Y=Y)
-    D, wp = librosa.sequence.dtw(X=X, Y=Y, subseq=False, metric="euclidian")
-    D, wp = librosa.sequence.dtw(X=X, Y=Y, subseq=False, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(X=X_chroma, Y=Y_chroma)
+    # D, wp = librosa.sequence.dtw(X=X, Y=Y, subseq=False, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(X=X, Y=Y, subseq=False, metric="euclidian")
     # D, wp = librosa.sequence.dtw(X=X, Y=Y, step_sizes_sigma=sigma, subseq=False, metric="euclidian")
-    # D, wp = librosa.sequence.dtw(C=C_FMP, step_sizes_sigma=sigma, subseq=False, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(C=C_FMP, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(C=C_FMP, step_sizes_sigma=sigma, metric="euclidian")
+    # D, wp = librosa.sequence.dtw(C=C_FMP, step_sizes_sigma=sigma, metric="euclidian", weights_mul=weights_mul)
+    D, wp = librosa.sequence.dtw(C=C_FMP, step_sizes_sigma=sigma, metric="euclidian", weights_add=weights_add)
     wp_s = np.asarray(wp) * hop_size / fs
 
     # -- place in df --
-    df = pd.DataFrame(wp_s, columns=["audio", "midi"])
-    df = df.reindex(index=df.index[::-1])
-    df.reset_index(inplace=True, drop=True)
+    df_mappings = pd.DataFrame(wp_s, columns=["audio", "midi"])
+    df_mappings = df_mappings.reindex(index=df_mappings.index[::-1])
+    df_mappings.reset_index(inplace=True, drop=True)
     
-    # -- show dtw plot --
+    # -- show dtw plots --
+
+    # -- plot features --
+    if show_chroma_features_plot is True:
+        plt.figure(figsize=(16, 8))
+        plt.subplot(2, 1, 1)
+        plt.title('Chroma Representation of $X_1$')
+        librosa.display.specshow(X_chroma, x_axis='time',
+                                 y_axis='chroma', hop_length=hop_size) # cmap='gray_r', 
+        plt.colorbar()
+        plt.subplot(2, 1, 2)
+        plt.title('Chroma Representation of $X_2$')
+        librosa.display.specshow(Y_chroma, x_axis='time',
+                                 y_axis='chroma', hop_length=hop_size) #cmap='gray_r', 
+        plt.colorbar()
+        plt.tight_layout()
+        plt.show()
+    
+    # -- show warping path on top of accumulated cost matrix --
+    if show_warping_path_on_acc_cost is True:
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111)
+        librosa.display.specshow(D, x_axis='time', y_axis='time',
+                                cmap='gray_r', hop_length=hop_size)
+        imax = ax.imshow(D, cmap=plt.get_cmap('gray_r'),
+                        origin='lower', interpolation='nearest', aspect='auto')
+        ax.plot(wp_s[:, 1], wp_s[:, 0], marker='o', color='r')
+        plt.title('Warping Path on Acc. Cost Matrix $D$')
+        plt.colorbar()
+        plt.show()
+
+    # -- audio sequence mappings --
     if show_dtw_plot is True:
         get_dtw_plot(x_1=x_1, x_2=x_2, fs=fs, hop_size=hop_size, wp=wp)
 
     # -- return result --
-    return df
+    return df_mappings
 
 # -----------------------------------------------------------------------------
 # Step 3: Apply DTW time mappings
@@ -293,13 +336,15 @@ if __name__ == "__main__":
     # Step 2: DTW time mappings
     wav_file_base = os.path.join(data_dir, 'Cataldi_Impromptu_in_A_Minor_REAL.wav')
     wav_file_warp = os.path.join(data_dir, 'Cataldi_ImpromptuMIDI.wav')                 # to fix: push notes to the front of the midi first, so the midi file & midi audio match.
-    df_mappings = get_time_mappings(wav_file_base=wav_file_base, wav_file_warp=wav_file_warp, show_dtw_plot=True)
+    df_mappings = get_time_mappings(
+        wav_file_base=wav_file_base, wav_file_warp=wav_file_warp, 
+        show_dtw_plot=True, show_chroma_features_plot=True, show_warping_path_on_acc_cost=True)
 
     # Step 3: Apply DTW time mappings
     df_midi = apply_time_mappings(df_midi=df_midi, df_mappings=df_mappings, show_remap_plot=True)
 
     # Step 4: Write midi
-    write_midi(df_midi=df_midi, outfile=r"C:\Users\User\Documents\GitHub\DTW\test.mid", time_colname="time (sec) remapped")
+    write_midi(df_midi=df_midi, outfile=r"C:\Users\User\Documents\GitHub\DTW\test_stepsize12,34_addit_weight_xx.mid", time_colname="time (sec) remapped")
 
 #     raise ParameterError(
 # librosa.util.exceptions.ParameterError: scipy.spatial.distance.cdist returned an error.
