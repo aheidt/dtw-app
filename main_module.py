@@ -23,13 +23,14 @@ from scipy.interpolate import interp1d
 # Step 1: reading midi file into a dataframe
 # -----------------------------------------------------------------------------
 
-def midi_to_df(midi_file:str) -> pd.DataFrame:
+def midi_to_df(midi_file:str, start_t0:bool=True) -> pd.DataFrame:
     """
         Reads a midi file and returns the content as a pd.DataFrame.\n
         Ignores meta messages.
 
         Args:
             midi_file (str): filepath of the midi file
+            start_t0 (bool): should the time be shifted so that the midi starts at time 0?
     """
     mid = MidiFile(midi_file, clip=True)
     ticks_per_beat = mid.ticks_per_beat
@@ -136,24 +137,66 @@ def get_time_mappings(wav_file_base, wav_file_warp, show_dtw_plot:bool=False, sh
 
     # -- define stepsize --
     n_fft = 4410
-    hop_size = 2205
+    # hop_size = 2205
     hop_size = 512
+
+    # (1st version)
     # sigma = np.array([[1, 0], [0, 1], [1, 1]])
     # sigma = np.array([[1, 1], [2, 1], [1, 2]])
-    sigma = np.array([[1, 1], [4, 3], [3, 4], [1, 2], [2, 1]])
-    # sigma = np.array([[1, 1], [2, 1], [1, 2], [2, 2]])
-    # sigma = np.array([[1, 1], [2, 1], [1, 2], [2, 2], [2, 3], [3, 2]])
     # sigma = np.array([[1, 1], [1, 3], [1, 3]])
     # weights_mul = [1, 2, 2]
-    weights_add = [1, 2, 2, 3, 3]
 
-    # -- create features --
+    # (2nd version)
+    # sigma = np.array([[1, 1], [2, 1], [1, 2], [2, 3], [3, 2]])
+    # sigma = np.array([[1, 1], [4, 3], [3, 4], [1, 2], [2, 1]])
+    # weights_add = [1, 2, 2, 3, 3]
+    # weights_add = [1, 1.2, 1.2, 1.4, 1.4]
+    # weights_add = [1, 1.1, 1.1, 1.2, 1.2]
+
+    # (3rd version)
+    sigma = np.array([[1,1], [3,4], [4,3], [2,3], [3,2], [1,2], [2,1], [1,3], [3,1], [1,4], [4,1]])
+    # weights_add =    [1.000, 1.375, 1.375, 1.480, 1.480, 1.750, 1.750, 2.020, 2.020, 2.125, 2.125] # x3
+    # weights_add =    [1.000, 1.250, 1.250, 1.320, 1.320, 1.500, 1.500, 1.680, 1.680, 1.750, 1.750] # x2
+    # weights_add =    [1.000, 1.125, 1.125, 1.160, 1.160, 1.250, 1.250, 1.340, 1.340, 1.375, 1.375] # x1
+    # weights_add =    [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000] # x0
+
+    # (4th version)
+    sigma = np.array([[1,1], [3,4], [4,3], [2,3], [3,2], [1,2], [2,1], [1,3], [3,1], [1,4], [4,1]])
+    weights_base =   [1.000, 1.125, 1.125, 1.160, 1.160, 1.250, 1.250, 1.340, 1.340, 1.375, 1.375]
+    weight_factor = 5
+    weights_add = [round(((weight - 1) * weight_factor) + 1, 3) for weight in weights_base]
+    weights_add
+
+    # -- create chroma features --
+    # (1st version):
     # X_chroma = librosa.feature.chroma_stft(y=x_1, sr=fs, tuning=0, norm=2,
     #                                         hop_length=hop_size, n_fft=n_fft)
     # Y_chroma = librosa.feature.chroma_stft(y=x_2, sr=fs, tuning=0, norm=2,
     #                                         hop_length=hop_size, n_fft=n_fft)
-    X_chroma = librosa.feature.chroma_cqt(y=x_1, sr=fs)
-    Y_chroma = librosa.feature.chroma_cqt(y=x_2, sr=fs)
+
+    # (2nd version):
+    # X_chroma = librosa.feature.chroma_cqt(y=x_1, sr=fs, bins_per_octave=12)
+    # Y_chroma = librosa.feature.chroma_cqt(y=x_2, sr=fs, bins_per_octave=12)
+
+    # (3rd version):
+    # x_harm = librosa.effects.harmonic(y=x_1, margin=8)
+    # X_chroma = librosa.feature.chroma_cqt(y=x_harm, sr=fs)
+
+    # y_harm = librosa.effects.harmonic(y=x_2, margin=8)
+    # Y_chroma = librosa.feature.chroma_cqt(y=y_harm, sr=fs)
+
+    # (4th version): check out https://librosa.org/doc/main/auto_examples/plot_chroma.html
+    x_harm = librosa.effects.harmonic(y=x_1, margin=8)
+    x_chroma_harm = librosa.feature.chroma_cqt(y=x_harm, sr=fs)
+    X_chroma = np.minimum(
+        x_chroma_harm, librosa.decompose.nn_filter(
+            x_chroma_harm, aggregate=np.median, metric='cosine'))
+
+    y_harm = librosa.effects.harmonic(y=x_2, margin=8)
+    y_chroma_harm = librosa.feature.chroma_cqt(y=y_harm, sr=fs)
+    Y_chroma = np.minimum(
+        y_chroma_harm, librosa.decompose.nn_filter(
+            y_chroma_harm, aggregate=np.median, metric='cosine'))
 
     # ell = 21
     # d = 5
@@ -243,11 +286,20 @@ def remap_function(df_mappings, x_colname:str="midi", y_colname:str="audio", sho
     # f(x), y: time (sec) remapped
     x = df_mappings[x_colname]
     y = df_mappings[y_colname]
+    x = np.array(x)
+    y = np.array(y)
+
+    # import scipy.signal
+    # scipy.signal.savgol_filter(x=y, window_length=15, polyorder=2, deriv=0, delta=1.0, axis=-1, mode='interp', cval=0.0)
+
+    # import scipy.interpolate
+    # f3 = scipy.interpolate.make_interp_spline(x=x, y=y, t=None)
 
     # -- interpolation methods --
     # f1 = interp1d(x, y, kind='linear')
     # f2 = interp1d(x, y, kind='cubic')
     f3 = interp1d(x, y, fill_value='extrapolate')
+    
 
     # -- generate plot --
     if show_plot is True:
@@ -330,12 +382,12 @@ if __name__ == "__main__":
         data_dir = os.path.join(r'C:\Users\User\Documents\GitHub\DTW')
 
     # Step 1: reading midi file into a dataframe
-    midi_file = os.path.join(data_dir, 'Cataldi_Impromptu.mid')
+    midi_file = os.path.join(data_dir, 'midi_files', 'Cataldi_Impromptu.mid')
     df_midi = midi_to_df(midi_file=midi_file)
 
     # Step 2: DTW time mappings
-    wav_file_base = os.path.join(data_dir, 'Cataldi_Impromptu_in_A_Minor_REAL.wav')
-    wav_file_warp = os.path.join(data_dir, 'Cataldi_ImpromptuMIDI.wav')                 # to fix: push notes to the front of the midi first, so the midi file & midi audio match.
+    wav_file_base = os.path.join(data_dir, 'wav_files', 'Cataldi_Impromptu_in_A_Minor_REAL3.wav')
+    wav_file_warp = os.path.join(data_dir, 'wav_files', 'Cataldi_ImpromptuMIDI.wav')                 # to fix: push notes to the front of the midi first, so the midi file & midi audio match.
     df_mappings = get_time_mappings(
         wav_file_base=wav_file_base, wav_file_warp=wav_file_warp, 
         show_dtw_plot=True, show_chroma_features_plot=True, show_warping_path_on_acc_cost=True)
@@ -344,9 +396,6 @@ if __name__ == "__main__":
     df_midi = apply_time_mappings(df_midi=df_midi, df_mappings=df_mappings, show_remap_plot=True)
 
     # Step 4: Write midi
-    write_midi(df_midi=df_midi, outfile=r"C:\Users\User\Documents\GitHub\DTW\test_stepsize12,34_addit_weight_xx.mid", time_colname="time (sec) remapped")
+    outfile = os.path.join(data_dir, 'midi_files', 'test_stepsize1234+_6x_weight_chroma4.mid')
+    write_midi(df_midi=df_midi, outfile=outfile, time_colname="time (sec) remapped")
 
-#     raise ParameterError(
-# librosa.util.exceptions.ParameterError: scipy.spatial.distance.cdist returned an error.
-# Please provide your input in the form X.shape=(K, N) and Y.shape=(K, M).
-#  1-dimensional sequences should be reshaped to X.shape=(1, N) and Y.shape=(1, M).

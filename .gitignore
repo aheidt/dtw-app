@@ -1,9 +1,6 @@
 # custom:
-*.wav
-*.mp3
-*.ogg
-*.mid
-*.MID
+midi_files/
+wav_files/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
