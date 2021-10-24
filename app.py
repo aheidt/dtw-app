@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog
-import tkinter.messagebox
+from tkinter import messagebox
 import pandas as pd
+import os
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from typing import Optional, Tuple
@@ -10,8 +11,9 @@ import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 
+
 class MenuBar(tk.Menu):
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         # -- init class --
         tk.Menu.__init__(self, parent)
         self.app = parent
@@ -22,12 +24,17 @@ class MenuBar(tk.Menu):
         # -- create menu (File) --
         filemenu = tk.Menu(menubar, tearoff=0)
 
+        filemenu.add_command(label="Restart", command=self.restart, accelerator="Ctrl+R")
+        filemenu.add_separator()
         filemenu.add_command(label="Open .wav (Original)", command=self.on_open_wav_original, accelerator="Ctrl+I")
         filemenu.add_command(label="Open .wav (from MIDI)", command=self.on_open_wav_from_midi, accelerator="Ctrl+O")
-        filemenu.add_command(label="Open MIDI", command=self.on_open_midi, accelerator="Ctrl+M")
-        filemenu.add_command(label="Save as MIDI", command=self.on_save_midi, accelerator="Ctrl+S")
+        filemenu.add_command(label="Open .midi", command=self.on_open_midi, accelerator="Ctrl+M")
+        filemenu.add_separator()
+        filemenu.add_command(label="Save as .midi", command=self.on_save_midi, accelerator="Ctrl+S")
+        filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.exit_app, accelerator="Ctrl+Q")
 
+        self.app.bind('<Control-r>', self.ctrl_r)
         self.app.bind('<Control-i>', self.ctrl_i)
         self.app.bind('<Control-o>', self.ctrl_o)
         self.app.bind('<Control-m>', self.ctrl_m)
@@ -43,43 +50,51 @@ class MenuBar(tk.Menu):
         self.add_cascade(label="Help", menu=helpmenu)
         
     # -- functionality for the menu bar -----------------------------
-    def on_open_wav_original(self):
+    def restart(self) -> None:
+        self.app.destroy()
+        app=App()
+        app.mainloop()
+
+    def on_open_wav_original(self) -> None:
         self.app.file_wav_original = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
         Views(self.app).get_wav_original_plot()
 
-    def on_open_wav_from_midi(self):
+    def on_open_wav_from_midi(self) -> None:
         self.app.file_wav_from_midi = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
         Views(self.app).get_wav_from_midi_plot()
 
-    def on_open_midi(self):
+    def on_open_midi(self) -> None:
         self.app.file_midi = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("MIDI files","*.midi;*.MIDI"),("All files","*.*")))
         Views(self.app).get_midi_plot()
     
-    def on_save_midi(self):
+    def on_save_midi(self) -> None:
         self.app.file_midi_save = filedialog.asksaveasfilename(initialdir = "/",title = "Save as",filetypes = (("MIDI files","*.midi;*.MIDI"),("All files","*.*")))
 
-    def exit_app(self):
+    def exit_app(self) -> None:
         self.app.destroy()
 
     # -- hotkey events ----------------------------------------------
-    def ctrl_i(self, event):
+    def ctrl_r(self, event) -> None:
+        self.restart()
+    
+    def ctrl_i(self, event) -> None:
         self.on_open_wav_original()
 
-    def ctrl_o(self, event):
+    def ctrl_o(self, event) -> None:
         self.on_open_wav_from_midi()
 
-    def ctrl_m(self, event):
+    def ctrl_m(self, event) -> None:
         self.on_open_midi()
 
-    def ctrl_s(self, event):
+    def ctrl_s(self, event) -> None:
         self.on_save_midi()
 
-    def ctrl_q(self, event):
+    def ctrl_q(self, event) -> None:
         self.exit_app()
 
 
 class Editing():
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         # -- init class --
         self.app = parent
 
@@ -99,7 +114,7 @@ class Editing():
         # <Leave>           The mouse pointer left the widget.
 
     # -- click events -----------------------------------------------
-    def insert_bar(self, event):
+    def insert_bar(self, event) -> None:
         """Adds a new bar to the graph."""
         bar_exists:bool = self.bar_exists(proximity=3)
         if bar_exists is True:
@@ -109,7 +124,7 @@ class Editing():
         else:
             raise ValueError("boolean return expected in 'bar_exists'.")
     
-    def delete_bar(self, event):
+    def delete_bar(self, event) -> None:
         """Deletes a bar from the graph."""
         bar_exists:bool = self.bar_exists(proximity=3)
         if bar_exists is True:
@@ -119,7 +134,7 @@ class Editing():
         else:
             raise ValueError("boolean return expected in 'bar_exists'.")
 
-    def move_bar_pos_1(self, event):
+    def move_bar_pos_1(self, event) -> None:
         bar_exists:bool = self.bar_exists(proximity=3)
         if bar_exists is True:
             print(self.bar_on_hand)
@@ -131,7 +146,7 @@ class Editing():
         else:
             raise ValueError("boolean return expected in 'bar_exists'.")
 
-    def move_bar_pos_2(self, event):
+    def move_bar_pos_2(self, event) -> None:
         if self.bar_on_hand is True:
             print(self.bar_on_hand)
             self.bar_on_hand = False
@@ -152,40 +167,84 @@ class Editing():
 
 
 class Views():
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         self.app = parent
 
-    def get_wav_original_plot(self):
+    def get_wav_original_plot(self) -> None:
+        # -- check if the figure has already been successfully loaded. if yes, don't overwrite it --
+        if self.app.figure1_loaded is True:
+            messagebox.showinfo("Info", "Could not load the figure, because it was already loaded. Consider restarting the app if you want to replace the sequence.")
+            return None
+        else:
+            pass
+        
         if self.app.file_wav_original is not None:
             try:
                 y, fs = librosa.load(self.app.file_wav_original)
-                figure1 = plt.Figure(figsize=(6,2), dpi=100)
-                figure1.add_subplot().plot(y)
+
+                x_num_steps = len(y)
+                time_length = len(y)/fs
+                x = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+
+                self.app.figure1 = plt.Figure(figsize=(6,2), dpi=100)
+                self.app.figure1.add_subplot().plot(x,y)
+                self.app.figure1.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
+                # self.app.figure1.tight_layout()
+                # self.app.figure1.xlim([0,100])
+                self.app.figure1_insert = FigureCanvasTkAgg(self.app.figure1, master=self.app.frame_pos_1)
+                self.app.figure1_insert.get_tk_widget().pack(fill='x', side='top') # tags='wav_original_plot'
+                self.app.figure1_loaded = True
                 
-                figure1.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
-                figure1_insert = FigureCanvasTkAgg(figure1, master=self.app)
-                figure1_insert.get_tk_widget().pack(fill='x', side='top')
-            except Exception:
-                tkinter.messagebox.Message("Could not load file: {file_wav_original}".format(file_wav_original=self.app.file_wav_original))
+            except Exception as e:
+                messagebox.showerror("Error Message", "Could not load file: {file_wav_original}".format(file_wav_original=self.app.file_wav_original))
+                messagebox.showerror("Internal Error Message", repr(e))
         else:
             pass
 
-    def get_wav_from_midi_plot(self):
+    def get_wav_from_midi_plot(self) -> None:
+        # -- check if the figure has already been successfully loaded. if yes, don't overwrite it --
+        if self.app.figure2_loaded is True:
+            messagebox.showinfo("Info", "Could not load the figure, because it was already loaded. Consider restarting the app if you want to replace the sequence.")
+            return None
+        else:
+            pass
+
         if self.app.file_wav_from_midi is not None:
             try:
                 y, fs = librosa.load(self.app.file_wav_from_midi)
+
+                x_num_steps = len(y)
+                time_length = len(y)/fs
+                x = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+
                 figure2 = plt.Figure(figsize=(6,2), dpi=100)
-                figure2.add_subplot().plot(y)
+                figure2.add_subplot().plot(x,y)
                 figure2.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
-                figure2_insert = FigureCanvasTkAgg(figure2, master=self.app)
-                figure2_insert.get_tk_widget().pack(fill='x', side='bottom')
-            except Exception:
-                tkinter.messagebox.Message("Could not load file: {file_wav_from_midi}".format(file_wav_from_midi=self.app.file_wav_from_midi))
+                figure2_insert = FigureCanvasTkAgg(figure2, master=self.app.frame_pos_2)
+                figure2_insert.get_tk_widget().pack(fill='x', side='top')
+            except Exception as e:
+                messagebox.showinfo("Could not load file: {file_wav_from_midi}".format(file_wav_from_midi=self.app.file_wav_from_midi))
+                messagebox.showerror("Internal Error Message", repr(e))
         else:
             pass
 
-    def get_midi_plot(self):
-        pass
+    def get_midi_plot(self) -> None:
+        # -- check if the figure has already been successfully loaded. if yes, don't overwrite it --
+        if self.app.figure3_loaded is True:
+            messagebox.showinfo("Info", "Could not load the figure, because it was already loaded. Consider restarting the app if you want to replace the sequence.")
+            return None
+        else:
+            pass
+
+        if self.app.file_midi is not None:
+            try:
+                pass
+                # ideas: https://colinwren.medium.com/visualising-midi-files-with-python-b221feacd762
+            except Exception as e:
+                messagebox.showinfo("Could not load file: {file_midi}".format(file_midi=self.app.file_midi))
+                messagebox.showerror("Internal Error Message", repr(e))
+        else:
+            pass
 
         # ax1.spines['top'].set_visible(False)
         # ax.spines['right'].set_visible(False)
@@ -195,8 +254,9 @@ class Views():
         # ax.get_xaxis().set_ticks([])
         # ax.get_yaxis().set_ticks([])
 
+
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self) -> None:
         # -- init class --
         tk.Tk.__init__(self)
 
@@ -204,10 +264,22 @@ class App(tk.Tk):
         self.geometry('1200x600')
         self.title("Dynamic Time Warp Tool")
 
+        self.frame_pos_1 = tk.Frame(self)
+        self.frame_pos_1.pack(sid="top", fill='x')
+        self.frame_pos_2 = tk.Frame(self)
+        self.frame_pos_2.pack(sid="top", fill='x')
+        self.frame_pos_3 = tk.Frame(self)
+        self.frame_pos_3.pack(sid="top", fill='x')
+
         # -- loaded filenames --
         self.file_wav_original = None
         self.file_wav_from_midi = None
         self.file_midi = None
+
+        # -- loaded figures --
+        self.figure1_loaded:bool = False
+        self.figure2_loaded:bool = False
+        self.figure3_loaded:bool = False
 
         # -- menubar --
         menubar = MenuBar(self)

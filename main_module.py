@@ -135,6 +135,19 @@ def get_time_mappings(wav_file_base, wav_file_warp, show_dtw_plot:bool=False, sh
     x_1, fs = librosa.load(wav_file_base)
     x_2, fs = librosa.load(wav_file_warp)
 
+
+    # plt.plot(x_1)
+    # plt.show()
+    
+    # x_num_steps = len(x_1)
+    # time_length = len(x_1)/fs
+    # x_axis = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+    # len(x_axis)
+    # x_axis[-5:]
+
+    # plt.plot(x_axis, x_1)
+    # plt.show()
+
     # -- define stepsize --
     n_fft = 4410
     # hop_size = 2205
