@@ -25,6 +25,7 @@ class MenuBar(tk.Menu):
 
         # -- create menu (File) -------------------------------------
         filemenu = tk.Menu(menubar, tearoff=0)
+        filemenu.add_command(label="New", command=self.new, accelerator="Ctrl+N")
         filemenu.add_command(label="Restart", command=self.restart, accelerator="Ctrl+R")
         filemenu.add_separator()
         filemenu.add_command(label="Open .wav (Original)", command=self.on_open_wav_original, accelerator="Ctrl+I")
@@ -35,6 +36,7 @@ class MenuBar(tk.Menu):
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.exit_app, accelerator="Ctrl+Q")
 
+        self.app.bind('<Control-n>', self.ctrl_n)
         self.app.bind('<Control-r>', self.ctrl_r)
         self.app.bind('<Control-i>', self.ctrl_i)
         self.app.bind('<Control-o>', self.ctrl_o)
@@ -59,6 +61,7 @@ class MenuBar(tk.Menu):
         viewmenu = tk.Menu(menubar, tearoff=0)
         viewmenu.add_command(label="zoom in", command=self.zoom_in, accelerator="Ctrl++")
         viewmenu.add_command(label="zoom out", command=self.zoom_out, accelerator="Ctrl+-")
+        viewmenu.add_separator()
         viewmenu.add_command(label="scroll right", command=self.scroll_right, accelerator="Ctrl+Right")
         viewmenu.add_command(label="scroll left", command=self.scroll_left, accelerator="Ctrl+Left")
 
@@ -85,6 +88,14 @@ class MenuBar(tk.Menu):
 
     # -- FILE -------------------------------------------------------
 
+    def new(self) -> None:
+        self.app.x_min_glob = 0
+        self.app.x_max_glob = 60
+        self.app.x_lower_bound_glob = 0
+        self.app.x_upper_bound_glob = 60
+        self.app.frame_1.clear_plot()
+        self.app.frame_2.clear_plot()
+
     def restart(self) -> None:
         self.app.destroy()
         app=App()
@@ -105,6 +116,7 @@ class MenuBar(tk.Menu):
             self.app.data_1.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
             # -- update x axis limits & bound --
+            # To do: add a function here to see if x_min_glob & x_max_glob are still valid, because we might have deleted a sequence.
             self.app.x_min_glob = 0
             if self.app.data_1.x_raw[-1:][0] > self.app.x_max_glob:
                 self.app.x_max_glob = self.app.data_1.x_raw[-1:][0]
@@ -112,19 +124,46 @@ class MenuBar(tk.Menu):
                 self.app.x_upper_bound_glob = self.app.data_1.x_raw[-1:][0]
             
             # -- draw graph --
+            self.app.frame_1.clear_plot()
             self.app.frame_1.get_plot()
+
+            # -- trigger axis adjustment --
+            self.app.frame_1.reload_axis()
+            self.app.frame_2.reload_axis()
 
         except Exception as e:
             messagebox.showerror("Error Message", "Could not load file: {file_wav_original}".format(file_wav_original=self.app.data_1.filename))
             messagebox.showerror("Python Error", repr(e))
 
     def on_open_wav_from_midi(self) -> None:
-        self.app.file_wav_from_midi = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
+        self.app.data_2.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
         
         try:
-            pass
+            # -- load timeseries --
+            self.app.data_2.y_raw, self.app.data_2.fs = librosa.load(self.app.data_2.filename)
+
+            # -- convert time to seconds for x axis--
+            x_num_steps = len(self.app.data_2.y_raw)
+            time_length = len(self.app.data_2.y_raw) / self.app.data_2.fs
+            self.app.data_2.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+
+            # -- update x axis limits & bound --
+            self.app.x_min_glob = 0
+            if self.app.data_2.x_raw[-1:][0] > self.app.x_max_glob:
+                self.app.x_max_glob = self.app.data_2.x_raw[-1:][0]
+            if self.app.data_2.x_raw[-1:][0] > self.app.x_upper_bound_glob:
+                self.app.x_upper_bound_glob = self.app.data_2.x_raw[-1:][0]
+            
+            # -- draw graph --
+            self.app.frame_2.clear_plot()
+            self.app.frame_2.get_plot()
+
+            # -- trigger axis adjustment --
+            self.app.frame_1.reload_axis()
+            self.app.frame_2.reload_axis()
+
         except Exception as e:
-            messagebox.showinfo("Could not load file: {file_wav_from_midi}".format(file_wav_from_midi=self.app.file_wav_from_midi))
+            messagebox.showinfo("Could not load file: {file_wav_from_midi}".format(file_wav_from_midi=self.app.data_2.filename))
             messagebox.showerror("Internal Error Message", repr(e))
         
         # self.app.frame_2.get_plot()
@@ -162,6 +201,7 @@ class MenuBar(tk.Menu):
 
         # -- trigger axis adjustment --
         self.app.frame_1.reload_axis()
+        self.app.frame_2.reload_axis()
 
     def zoom_out(self) -> None:
         # -- adjust x axis limits --
@@ -184,6 +224,7 @@ class MenuBar(tk.Menu):
 
         # -- trigger axis adjustment --
         self.app.frame_1.reload_axis()
+        self.app.frame_2.reload_axis()
 
     def scroll_right(self) -> None:
         pass
@@ -207,6 +248,9 @@ class MenuBar(tk.Menu):
     # ---------------------------------------------------------------
 
     # -- FILE -------------------------------------------------------
+
+    def ctrl_n(self, event) -> None:
+        self.new()
 
     def ctrl_r(self, event) -> None:
         self.restart()
@@ -340,6 +384,32 @@ class View1():
         self.canvas.draw()
 
 
+class View2():
+    def __init__(self, parent):
+        self.app = parent
+
+        self.figure = plt.Figure(figsize=(6,2), dpi=100)
+        self.axes = self.figure.add_subplot()
+
+        self.figure.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
+
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_2)
+        self.canvas.get_tk_widget().pack(fill='x', side='top')
+
+    def get_plot(self):
+        self.axes.plot(self.app.data_2.x_raw, self.app.data_2.y_raw)
+        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.canvas.draw()
+    
+    def reload_axis(self):
+        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.canvas.draw()
+
+    def clear_plot(self):
+        self.axes.cla()
+        self.canvas.draw()
+
+
 class App(tk.Tk):
     def __init__(self) -> None:
         # -- init class --
@@ -361,6 +431,7 @@ class App(tk.Tk):
 
         # -- init views --
         self.frame_1 = View1(parent=self)
+        self.frame_2 = View2(parent=self)
 
         # -- init container that holds data for each view --
         self.data_1 = self.data_container()
