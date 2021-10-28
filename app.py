@@ -211,6 +211,7 @@ class MenuBar(tk.Menu):
         self.app.x_min_glob -= zoom_amount
         self.app.x_max_glob += zoom_amount
 
+        # -- adjust xlim to avoid going outside the bounds --
         if self.app.x_min_glob < self.app.x_lower_bound_glob and self.app.x_max_glob > self.app.x_upper_bound_glob:
             self.app.x_min_glob = self.app.x_lower_bound_glob
             self.app.x_max_glob = self.app.x_upper_bound_glob
@@ -228,10 +229,42 @@ class MenuBar(tk.Menu):
         self.app.frame_2.reload_axis()
 
     def scroll_right(self) -> None:
-        pass
+        # -- adjust x axis limits --
+        window_width:Union[int,float] = self.app.x_max_glob - self.app.x_min_glob
+        scroll_amount:Union[int,float] = window_width * 0.18
+
+        self.app.x_min_glob += scroll_amount
+        self.app.x_max_glob += scroll_amount
+
+        # -- adjust xlim to avoid going outside the bounds --
+        if self.app.x_max_glob > self.app.x_upper_bound_glob:
+            self.app.x_min_glob = self.app.x_upper_bound_glob - window_width
+            self.app.x_max_glob = self.app.x_upper_bound_glob
+        else:
+            pass
+
+        # -- trigger axis adjustment --
+        self.app.frame_1.reload_axis()
+        self.app.frame_2.reload_axis()
 
     def scroll_left(self) -> None:
-        pass
+        # -- adjust x axis limits --
+        window_width:Union[int,float] = self.app.x_max_glob - self.app.x_min_glob
+        scroll_amount:Union[int,float] = window_width * 0.18
+
+        self.app.x_min_glob -= scroll_amount
+        self.app.x_max_glob -= scroll_amount
+
+        # -- adjust xlim to avoid going outside the bounds --
+        if self.app.x_min_glob < self.app.x_lower_bound_glob:
+            self.app.x_min_glob = self.app.x_lower_bound_glob
+            self.app.x_max_glob = self.app.x_lower_bound_glob + window_width
+        else:
+            pass
+
+        # -- trigger axis adjustment --
+        self.app.frame_1.reload_axis()
+        self.app.frame_2.reload_axis()
 
     # -- HELP -------------------------------------------------------
 
