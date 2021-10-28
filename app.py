@@ -116,7 +116,6 @@ class MenuBar(tk.Menu):
             self.app.data_1.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
             # -- update x axis limits & bound --
-            # To do: add a function here to see if x_min_glob & x_max_glob are still valid, because we might have deleted a sequence.
             self.app.x_min_glob = 0
             if self.app.data_1.x_raw[-1:][0] > self.app.x_max_glob:
                 self.app.x_max_glob = self.app.data_1.x_raw[-1:][0]
@@ -128,6 +127,7 @@ class MenuBar(tk.Menu):
             self.app.frame_1.get_plot()
 
             # -- trigger axis adjustment --
+            self.app.reset_bounds()
             self.app.frame_1.reload_axis()
             self.app.frame_2.reload_axis()
 
@@ -159,6 +159,7 @@ class MenuBar(tk.Menu):
             self.app.frame_2.get_plot()
 
             # -- trigger axis adjustment --
+            self.app.reset_bounds()
             self.app.frame_1.reload_axis()
             self.app.frame_2.reload_axis()
 
@@ -455,6 +456,23 @@ class App(tk.Tk):
     class data_container():
         def __init__(self) -> None:
             pass
+
+    def reset_bounds(self) -> None:
+        try:
+            x1 = self.data_1.x_raw[-1:][0]
+        except Exception:
+            x1 = 0
+        
+        try:
+            x2 = self.data_2.x_raw[-1:][0]
+        except Exception:
+            x2 = 0
+
+        self.x_min_glob = 0
+        self.x_max_glob = max(60, x1, x2)
+
+        self.x_lower_bound_glob = 0
+        self.x_upper_bound_glob = max(60, x1, x2)
 
 
 if __name__ == "__main__":
