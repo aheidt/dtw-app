@@ -24,18 +24,21 @@ from typing import Optional
 # -----------------------------------------------------------------------------
 
 class DTW:
-    def __init__(self, file_wav_original, file_wav_from_midi, file_midi) -> None:
-        # -- load data --
-        print(f"Loading {file_wav_original} ...")
-        self.x_raw, self.fs = librosa.load(file_wav_original)
-        print(f"Loading {file_wav_from_midi} ...")
-        self.y_raw, self.fs = librosa.load(file_wav_from_midi)
-        print(f"Loading {file_midi} ...")
-        self.df_midi:pd.DataFrame = MidiIO.midi_to_df(file_midi=file_midi)
+    def __init__(self, x_raw, y_raw, fs, df_midi) -> None:
+        """
+            Dynamic time warp object. Holds all the data. Extracts chroma features, computes warping path and applies it to the midi.
 
-        # -- extracting chroma features --
-        print(f"Extracting chroma features ...")
-        self.compute_chroma_features()
+            Args:
+                x_raw: can be obtained through librosa.load()
+                y_raw: can be obtained through librosa.load()
+                fs: 
+                df_midi: can be obtained through MidiIO.midi_to_df()
+        """
+        # -- load data --
+        self.x_raw = x_raw
+        self.y_raw = y_raw
+        self.fs = fs
+        self.df_midi = df_midi
 
         # -- dtw params & weights --
         self.hop_size:int = 512
@@ -290,7 +293,7 @@ class MidiIO:
 
 if __name__ == "__main__":
 
-    # Step 1: file location
+    # Step 0: file location
     try:
         data_dir = os.path(__file__)
     except NameError:
@@ -300,8 +303,17 @@ if __name__ == "__main__":
         file_wav_original  = os.path.join(data_dir, 'wav_files', 'Cataldi_Impromptu_in_A_Minor_REAL3.wav')
         file_wav_from_midi = os.path.join(data_dir, 'wav_files', 'Cataldi_ImpromptuMIDI.wav')                 # to fix: push notes to the front of the midi first, so the midi file & midi audio match.
 
+    # Step 1: load data
+    print(f"Loading {file_wav_original} ...")
+    x_raw, fs = librosa.load(file_wav_original)
+    print(f"Loading {file_wav_from_midi} ...")
+    y_raw, fs = librosa.load(file_wav_from_midi)
+    print(f"Loading {file_midi} ...")
+    df_midi:pd.DataFrame = MidiIO.midi_to_df(file_midi=file_midi)
+
     # Step 2: compute DTW time mappings
-    dtw_obj = DTW(file_wav_original=file_wav_original, file_wav_from_midi=file_wav_from_midi, file_midi=file_midi)
+    dtw_obj = DTW(x_raw=x_raw, y_raw=y_raw, fs=fs, df_midi=df_midi)
+    dtw_obj.compute_chroma_features()
     dtw_obj.compute_dtw()
     dtw_obj.compute_remap_function()
 
