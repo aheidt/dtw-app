@@ -109,7 +109,7 @@ class MenuBar(tk.Menu):
         self.app.data_1.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
 
         try:
-            # -- load timeseries --
+            # -- load wav --
             self.app.data_1.y_raw, self.app.data_1.fs = librosa.load(self.app.data_1.filename)
 
             # -- convert time to seconds for x axis--
@@ -132,6 +132,7 @@ class MenuBar(tk.Menu):
             self.app.reset_bounds()
             self.app.frame_1.reload_axis()
             self.app.frame_2.reload_axis()
+            self.app.frame_3.reload_axis()
 
         except Exception as e:
             messagebox.showerror("Error Message", "Could not load file: {file_wav_original}".format(file_wav_original=self.app.data_1.filename))
@@ -141,7 +142,7 @@ class MenuBar(tk.Menu):
         self.app.data_2.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
         
         try:
-            # -- load timeseries --
+            # -- load wav --
             self.app.data_2.y_raw, self.app.data_2.fs = librosa.load(self.app.data_2.filename)
 
             # -- convert time to seconds for x axis--
@@ -164,6 +165,7 @@ class MenuBar(tk.Menu):
             self.app.reset_bounds()
             self.app.frame_1.reload_axis()
             self.app.frame_2.reload_axis()
+            self.app.frame_3.reload_axis()
 
         except Exception as e:
             messagebox.showinfo("Could not load file: {file_wav_from_midi}".format(file_wav_from_midi=self.app.data_2.filename))
@@ -172,13 +174,31 @@ class MenuBar(tk.Menu):
         # self.app.frame_2.get_plot()
 
     def on_open_midi(self) -> None:
-        self.app.file_midi = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("MIDI files","*.midi;*.MIDI"),("All files","*.*")))
+        self.app.data_3.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("MIDI files","*.mid;*.MID"),("All files","*.*")))
     
         try:
-            pass
-            # ideas: https://colinwren.medium.com/visualising-midi-files-with-python-b221feacd762
+            # -- load midi --
+            self.app.data_3.df_midi = MidiIO.midi_to_df(file_midi=self.app.data_3.filename, clip_t0=False)
+
+            # -- update x axis limits & bound --
+            self.app.x_min_glob = 0
+            if self.app.data_3.df_midi["time abs (sec)"][-1:].item() > self.app.x_max_glob:
+                self.app.x_max_glob = self.app.data_3.df_midi["time abs (sec)"][-1:].item()
+            if self.app.data_3.df_midi["time abs (sec)"][-1:].item() > self.app.x_upper_bound_glob:
+                self.app.x_upper_bound_glob = self.app.data_3.df_midi["time abs (sec)"][-1:].item()
+            
+            # -- draw graph --
+            self.app.frame_3.clear_plot()
+            self.app.frame_3.get_plot()
+
+            # -- trigger axis adjustment --
+            self.app.reset_bounds()
+            self.app.frame_1.reload_axis()
+            self.app.frame_2.reload_axis()
+            self.app.frame_3.reload_axis()
+
         except Exception as e:
-            messagebox.showinfo("Could not load file: {file_midi}".format(file_midi=self.app.file_midi))
+            messagebox.showinfo("Could not load file: {file_midi}".format(file_midi=self.app.data_3.filename))
             messagebox.showerror("Internal Error Message", repr(e))
 
         # self.app.frame_3.get_plot()
@@ -232,6 +252,7 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.frame_1.reload_axis()
         self.app.frame_2.reload_axis()
+        self.app.frame_3.reload_axis()
 
     def zoom_out(self) -> None:
         # -- adjust x axis limits --
@@ -256,6 +277,7 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.frame_1.reload_axis()
         self.app.frame_2.reload_axis()
+        self.app.frame_3.reload_axis()
 
     def scroll_right(self) -> None:
         # -- adjust x axis limits --
@@ -275,6 +297,7 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.frame_1.reload_axis()
         self.app.frame_2.reload_axis()
+        self.app.frame_3.reload_axis()
 
     def scroll_left(self) -> None:
         # -- adjust x axis limits --
@@ -294,6 +317,7 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.frame_1.reload_axis()
         self.app.frame_2.reload_axis()
+        self.app.frame_3.reload_axis()
 
     # -- HELP -------------------------------------------------------
 
@@ -433,13 +457,17 @@ class Editing():
 
 
 class View1():
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         self.app = parent
 
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
         self.axes = self.figure.add_subplot()
 
-        self.figure.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
+        self.axes.set_yticklabels([])
+        self.axes.set_xticklabels([])
+        self.axes.grid(axis="x")
+
+        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_1)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
@@ -447,6 +475,7 @@ class View1():
     def get_plot(self):
         self.axes.plot(self.app.data_1.x_raw, self.app.data_1.y_raw)
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.grid(axis="x")
         self.canvas.draw()
     
     def reload_axis(self):
@@ -459,13 +488,17 @@ class View1():
 
 
 class View2():
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
         self.app = parent
 
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
         self.axes = self.figure.add_subplot()
 
-        self.figure.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
+        self.axes.set_yticklabels([])
+        self.axes.set_xticklabels([])
+        self.axes.grid(axis="x")
+
+        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_2)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
@@ -473,8 +506,63 @@ class View2():
     def get_plot(self):
         self.axes.plot(self.app.data_2.x_raw, self.app.data_2.y_raw)
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.grid(axis="x")
         self.canvas.draw()
     
+    def reload_axis(self):
+        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.canvas.draw()
+
+    def clear_plot(self):
+        self.axes.cla()
+        self.canvas.draw()
+
+
+class View3():
+    def __init__(self, parent) -> None:
+        self.app = parent
+
+        self.figure = plt.Figure(figsize=(6,2), dpi=100)
+        self.axes = self.figure.add_subplot()
+
+        self.axes.grid(axis="x")
+
+        self.figure.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
+
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_3)
+        self.canvas.get_tk_widget().pack(fill='x', side='top')
+        
+    def get_plot(self):
+        segs = []
+        colors = []
+        my_cmap = plt.get_cmap('viridis')
+        norm = Normalize(vmin=0, vmax=127)
+        notes = self.app.data_3.df_midi["note"].unique()
+        for note in notes:
+            df_note = self.app.data_3.df_midi.where(self.app.data_3.df_midi["note"] == note).dropna()
+            x1, x2, y1, y2, velocity = [None, None, note, note, None]
+            for idx, row in df_note.iterrows():
+                if row["type"] == "note_on":
+                    x1 = row["time abs (sec)"]
+                    velocity = row["velocity"]
+                elif row["type"] == "note_off":
+                    x2 = row["time abs (sec)"]
+                    if x1 is not None:
+                        segs.append(((x1, y1), (x2, y2)))
+                        colors.append(my_cmap(norm(velocity)))
+                        x1 = None
+                        x2 = None
+                else:
+                    continue
+
+        ln_coll = matplotlib.collections.LineCollection(segs, colors=colors)
+
+        self.axes.add_collection(ln_coll)
+        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.set_ylim(min(notes)-1, max(notes)+1)
+        self.axes.grid(axis="x")
+        self.canvas.draw()
+
     def reload_axis(self):
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
         self.canvas.draw()
@@ -506,6 +594,7 @@ class App(tk.Tk):
         # -- init views --
         self.frame_1 = View1(parent=self)
         self.frame_2 = View2(parent=self)
+        self.frame_3 = View3(parent=self)
 
         # -- init container that holds data for each view --
         self.data_1 = self.data_container()
@@ -540,12 +629,17 @@ class App(tk.Tk):
             x2 = self.data_2.x_raw[-1:][0]
         except Exception:
             x2 = 0
+        
+        try:
+            x3 = self.data_3.df_midi["time abs (sec)"][-1:].item()
+        except Exception:
+            x3 = 0
 
         self.x_min_glob = 0
-        self.x_max_glob = max(60, x1, x2)
+        self.x_max_glob = max(60, x1, x2, x3)
 
         self.x_lower_bound_glob = 0
-        self.x_upper_bound_glob = max(60, x1, x2)
+        self.x_upper_bound_glob = max(60, x1, x2, x3)
 
 
 if __name__ == "__main__":
