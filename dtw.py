@@ -45,8 +45,6 @@ class DTW:
         self.sigma:Optional[np.array] = np.array([[1,1], [3,4], [4,3], [2,3], [3,2], [1,2], [2,1], [1,3], [3,1], [1,4], [4,1]])
         self.weights_add:Optional[list] = [1.0, 1.625, 1.625, 1.8, 1.8, 2.25, 2.25, 2.7, 2.7, 2.875, 2.875]
 
-        print("Done")
-
     # -- transform --
     
     def compute_chroma_features(self) -> None:
@@ -100,7 +98,7 @@ class DTW:
             Adds a column to self.df_midi with a warped/remapped time for each event.
         """
         # -- apply remapping --
-        self.df_midi["time (sec) remapped"] = [self.f(x) for x in self.df_midi["time (sec)"]]
+        self.df_midi["time abs (sec) remapped"] = [self.f(x) for x in self.df_midi["time abs (sec)"]]
 
     # -- plot graphs --
 
@@ -155,12 +153,12 @@ class DTW:
         plt.figure(figsize=(16, 8))
 
         plt.subplot(2, 1, 1)
-        plt.title('Chroma Representation of $self.x_raw$')
+        plt.title('Chroma Representation of $self.x\_raw$')
         librosa.display.specshow(self.x_chroma, x_axis='time', y_axis='chroma', hop_length=self.hop_size)
         plt.colorbar()
         
         plt.subplot(2, 1, 2)
-        plt.title('Chroma Representation of $self.y_raw$')
+        plt.title('Chroma Representation of $self.y\_raw$')
         librosa.display.specshow(self.y_chroma, x_axis='time', y_axis='chroma', hop_length=self.hop_size)
         plt.colorbar()
         
@@ -208,14 +206,14 @@ class MidiIO:
         pass
 
     @staticmethod
-    def midi_to_df(file_midi:str, start_t0:bool=True) -> pd.DataFrame:
+    def midi_to_df(file_midi:str, clip_t0:bool=True) -> pd.DataFrame:
         """
             Reads a midi file and returns the content as a pd.DataFrame.\n
             Ignores meta messages.
 
             Args:
                 file_midi (str): filepath of the midi file
-                start_t0 (bool): should the time be shifted so that the midi starts at time 0?
+                clip_t0 (bool): should the time be shifted so that the midi starts at time 0?
             
             Returns:
                 (pd.DataFrame): contains all midi note events inside a dataframe. 
@@ -224,7 +222,7 @@ class MidiIO:
         ticks_per_beat = mid.ticks_per_beat
         df = pd.DataFrame(None, columns=[
             "type", "channel", "track", "ticks_per_beat", "note", "velocity", 
-            "time (delta)", "time (abs)", "time (sec)"])
+            "time delta (tick)", "time abs (tick)", "time delta (sec)", "time abs (sec)"])
         for track_num, track in enumerate(mid.tracks):
             time_abs = 0
             for msg in track:
@@ -238,14 +236,21 @@ class MidiIO:
                             "ticks_per_beat": ticks_per_beat,
                             "note":           msg.note,
                             "velocity":       msg.velocity,
-                            "time (delta)":   msg.time,
-                            "time (abs)":     time_abs,
-                            "time (sec)":     mido.tick2second(tick=time_abs, ticks_per_beat=ticks_per_beat, tempo=500000),
+                            "time delta (tick)": msg.time,
+                            "time abs (tick)":   time_abs,
                         },
                         ignore_index=True
                     )
                 except Exception:
                     pass
+        
+        if clip_t0 is True:
+            shift_ticks_by = df["time abs (tick)"][0]
+            df["time abs (tick)"] = [x - shift_ticks_by for x in df["time abs (tick)"]]
+        
+        df["time delta (sec)"] = [mido.tick2second(tick=x, ticks_per_beat=ticks_per_beat, tempo=500000) for x in df["time delta (tick)"]]
+        df["time abs (sec)"] = [mido.tick2second(tick=x, ticks_per_beat=ticks_per_beat, tempo=500000) for x in df["time abs (tick)"]]
+
         return df
 
     @staticmethod
