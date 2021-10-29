@@ -4,6 +4,8 @@ from tkinter import messagebox
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
+import matplotlib.collections
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from typing import Optional, Tuple, Union
 
@@ -46,16 +48,16 @@ class MenuBar(tk.Menu):
 
         # -- create menu (DTW) --------------------------------------
         dtwmenu = tk.Menu(menubar, tearoff=0)
-        dtwmenu.add_command(label="apply dtw algorithm", command=None, accelerator="F1")
+        dtwmenu.add_command(label="apply dtw algorithm", command=self.apply_dtw_algo, accelerator="F1")
         dtwmenu.add_separator()
-        dtwmenu.add_command(label="show chroma features", command=None, accelerator="F2")
-        dtwmenu.add_command(label="show dtw mappings", command=None, accelerator="F3")
-        dtwmenu.add_command(label="show remap function", command=None, accelerator="F4")
+        dtwmenu.add_command(label="show chroma features", command=self.show_chroma_features, accelerator="F2")
+        dtwmenu.add_command(label="show dtw mappings", command=self.show_dtw_mappings, accelerator="F3")
+        dtwmenu.add_command(label="show remap function", command=self.show_remap_function, accelerator="F4")
 
-        # self.app.bind('<F1>', self.f1)
-        # self.app.bind('<F2>', self.f2)
-        # self.app.bind('<F3>', self.f3)
-        # self.app.bind('<F4>', self.f4)
+        self.app.bind('<F1>', self.f1)
+        self.app.bind('<F2>', self.f2)
+        self.app.bind('<F3>', self.f3)
+        self.app.bind('<F4>', self.f4)
 
         # -- create menu (View) -------------------------------------
         viewmenu = tk.Menu(menubar, tearoff=0)
@@ -191,6 +193,33 @@ class MenuBar(tk.Menu):
     def exit_app(self) -> None:
         self.app.destroy()
 
+    # -- DTW --------------------------------------------------------
+
+    def apply_dtw_algo(self) -> None:
+        # Step 2: compute DTW time mappings
+        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y_raw, y_raw=self.app.data_2.y_raw, fs=self.app.data_1.fs, df_midi=None)
+        print("Computing chroma features...")
+        self.app.dtw_obj.compute_chroma_features()
+        print("Computing DTW...")
+        self.app.dtw_obj.compute_dtw()
+        print("Computing remap function...")
+        self.app.dtw_obj.compute_remap_function()
+        print("Done")
+
+        # Step 4: Apply DTW time mappings
+        # Need to write a function: self.app.dtw_obj.compute_remapped_wav_from_midi(f, x_time)
+        # print("Remapping midi")
+        # self.app.dtw_obj.compute_remapped_midi()
+
+    def show_chroma_features(self) -> None:
+        self.app.dtw_obj.plot_chroma_features()
+
+    def show_dtw_mappings(self) -> None:
+        self.app.dtw_obj.plot_dtw_mappings()
+
+    def show_remap_function(self) -> None:
+        self.app.dtw_obj.plot_remap_function()
+
     # -- VIEW -------------------------------------------------------
 
     def zoom_in(self) -> None:
@@ -269,12 +298,9 @@ class MenuBar(tk.Menu):
     # -- HELP -------------------------------------------------------
 
     def test1(self):
-        # self.app.file_wav_original = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
-        # self.app.frame_1.get_plot()
         pass
 
     def test2(self):
-        # self.app.frame_1.clear_plot()
         pass
 
     # ---------------------------------------------------------------
@@ -303,6 +329,20 @@ class MenuBar(tk.Menu):
 
     def ctrl_q(self, event) -> None:
         self.exit_app()
+
+    # -- DTW --------------------------------------------------------
+
+    def f1(self, event) -> None:
+        self.apply_dtw_algo()
+
+    def f2(self, event) -> None:
+        self.show_chroma_features()
+
+    def f3(self, event) -> None:
+        self.show_dtw_mappings()
+
+    def f4(self, event) -> None:
+        self.show_remap_function()
 
     # -- VIEW -------------------------------------------------------
 
