@@ -216,7 +216,7 @@ class MenuBar(tk.Menu):
     # -- DTW --------------------------------------------------------
 
     def apply_dtw_algo(self) -> None:
-        # Step 2: compute DTW time mappings
+        # -- compute DTW time mappings --
         self.app.dtw_obj = DTW(x_raw=self.app.data_1.y_raw, y_raw=self.app.data_2.y_raw, fs=self.app.data_1.fs, df_midi=None)
         print("Computing chroma features...")
         self.app.dtw_obj.compute_chroma_features()
@@ -224,12 +224,35 @@ class MenuBar(tk.Menu):
         self.app.dtw_obj.compute_dtw()
         print("Computing remap function...")
         self.app.dtw_obj.compute_remap_function()
-        print("Done")
 
-        # Step 4: Apply DTW time mappings
-        # Need to write a function: self.app.dtw_obj.compute_remapped_wav_from_midi(f, x_time)
-        # print("Remapping midi")
-        # self.app.dtw_obj.compute_remapped_midi()
+        # -- save old data for dtw stats (as it will be overwritten...) --
+        # self.app.data_3.df_midi
+        # self.app.data_2.x_raw
+
+        # -- apply DTW time mappings --
+        print("Remapping midi")
+        self.app.data_3.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_3.df_midi["time abs (sec)"]]
+        print("Remapping wav")
+        # takes too much time, need to downsample (i.e. only show e.g. every 10th value)
+        # maybe add in the menu an option to set the sample size (only for plotting reasons, not for compational reasons)
+        self.app.data_2.x_raw = [self.app.dtw_obj.f(x) for x in self.app.data_2.x_raw]
+
+        # -- draw graphs --
+        print("Redrawing graphs")
+        self.app.frame_2.clear_plot()
+        self.app.frame_2.get_plot()
+
+        self.app.frame_3.clear_plot()
+        self.app.frame_3.get_plot()
+
+        # -- trigger axis adjustment --
+        print("Resetting axis")
+        self.app.reset_bounds()
+        self.app.frame_1.reload_axis()
+        self.app.frame_2.reload_axis()
+        self.app.frame_3.reload_axis()
+
+        print("Done")
 
     def show_chroma_features(self) -> None:
         self.app.dtw_obj.plot_chroma_features()
