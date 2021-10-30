@@ -117,6 +117,10 @@ class MenuBar(tk.Menu):
             time_length = len(self.app.data_1.y_raw) / self.app.data_1.fs
             self.app.data_1.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
+            # -- create reduced sample for plotting --
+            self.app.data_1_reduced.y_raw = self.app.data_1.y_raw[::self.app.downsampling_factor]
+            self.app.data_1_reduced.x_raw = self.app.data_1.x_raw[::self.app.downsampling_factor]
+
             # -- update x axis limits & bound --
             self.app.x_min_glob = 0
             if self.app.data_1.x_raw[-1:][0] > self.app.x_max_glob:
@@ -149,6 +153,10 @@ class MenuBar(tk.Menu):
             x_num_steps = len(self.app.data_2.y_raw)
             time_length = len(self.app.data_2.y_raw) / self.app.data_2.fs
             self.app.data_2.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+
+            # -- create reduced sample for plotting --
+            self.app.data_2_reduced.y_raw = self.app.data_2.y_raw[::self.app.downsampling_factor]
+            self.app.data_2_reduced.x_raw = self.app.data_2.x_raw[::self.app.downsampling_factor]
 
             # -- update x axis limits & bound --
             self.app.x_min_glob = 0
@@ -225,17 +233,11 @@ class MenuBar(tk.Menu):
         print("Computing remap function...")
         self.app.dtw_obj.compute_remap_function()
 
-        # -- save old data for dtw stats (as it will be overwritten...) --
-        # self.app.data_3.df_midi
-        # self.app.data_2.x_raw
-
         # -- apply DTW time mappings --
-        print("Remapping midi")
+        print("Remapping midi...")
         self.app.data_3.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_3.df_midi["time abs (sec)"]]
-        print("Remapping wav")
-        # takes too much time, need to downsample (i.e. only show e.g. every 10th value)
-        # maybe add in the menu an option to set the sample size (only for plotting reasons, not for compational reasons)
-        self.app.data_2.x_raw = [self.app.dtw_obj.f(x) for x in self.app.data_2.x_raw]
+        print("Remapping wav...")
+        self.app.data_2_reduced.x_raw = [self.app.dtw_obj.f(x) for x in self.app.data_2_reduced.x_raw]
 
         # -- draw graphs --
         print("Redrawing graphs")
@@ -496,7 +498,7 @@ class View1():
         self.canvas.get_tk_widget().pack(fill='x', side='top')
 
     def get_plot(self):
-        self.axes.plot(self.app.data_1.x_raw, self.app.data_1.y_raw)
+        self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
         self.axes.grid(axis="x")
         self.canvas.draw()
@@ -527,7 +529,7 @@ class View2():
         self.canvas.get_tk_widget().pack(fill='x', side='top')
 
     def get_plot(self):
-        self.axes.plot(self.app.data_2.x_raw, self.app.data_2.y_raw)
+        self.axes.plot(self.app.data_2_reduced.x_raw, self.app.data_2_reduced.y_raw)
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
         self.axes.grid(axis="x")
         self.canvas.draw()
@@ -603,6 +605,7 @@ class App(tk.Tk):
         # -- window style --
         self.geometry('1200x600')
         self.title("Dynamic Time Warp Tool")
+        self.downsampling_factor:int = 50 # only plot every 50th data point from .wav for performance reasons
 
         # -- create master frames
         self.frame_pos_1 = tk.Frame(self)
@@ -623,6 +626,9 @@ class App(tk.Tk):
         self.data_1 = self.data_container()
         self.data_2 = self.data_container()
         self.data_3 = self.data_container()
+
+        self.data_1_reduced = self.data_container()
+        self.data_2_reduced = self.data_container()
 
         # -- init global x axis (in seconds) --
         self.x_min_glob:Union[int,float] = 0
