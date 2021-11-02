@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import matplotlib.collections
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import librosa
 import librosa.display
@@ -408,7 +408,173 @@ class MenuBar(tk.Menu):
         self.scroll_left()
 
 
-class Editing():
+class MouseEvents_1():
+    def __init__(self, app) -> None:
+        # -- init class --
+        self.app = app
+
+        # -- click coordinate memory --
+        self.button_1_down_coord:Tuple[int, int] = (None, None)
+        self.button_1_up_coord:Tuple[int, int] = (None, None)
+
+        self.button_3_down_coord:Tuple[int, int] = (None, None)
+        self.button_3_up_coord:Tuple[int, int] = (None, None)
+
+        # -- mouse click --
+        self.app.frame_1.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
+        self.app.frame_1.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
+
+        self.app.frame_1.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
+        self.app.frame_1.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
+
+        # -- hover canvas (hover bar would be nice too...) --
+        self.app.frame_1.canvas.get_tk_widget().bind("<Enter>", self.hover_canvas_in)  # mouse pointer entered the widget
+        self.app.frame_1.canvas.get_tk_widget().bind("<Leave>", self.hover_canvas_out) # mouse pointer left the widget
+
+    # -- click events -----------------------------------------------
+
+    def record_button_1_down(self, event) -> None:
+        self.button_1_down_coord:Tuple[int, int] = (event.x, event.y)
+
+    def record_button_1_up(self, event) -> None:
+        self.button_1_up_coord:Tuple[int, int] = (event.x, event.y)
+
+        if self.button_1_down_coord == self.button_1_up_coord:
+            x_pos = self.app.convert_x_pos(self.button_1_up_coord[0])
+            bar_already_exists:bool = self.app.frame_1.bar_exists(x=x_pos)
+            if bar_already_exists is True:
+                print(f"view_1: A bar already exists at: {event.x} {event.y} | {x_pos}")
+            else:
+                self.app.frame_1.insert_bar(x_pos)
+                print(f"view_1: A new bar was inserted at: {event.x} {event.y} | {x_pos}")
+
+        else:
+            x_from = self.app.convert_x_pos(self.button_1_down_coord[0])
+            x_to   = self.app.convert_x_pos(self.button_1_up_coord[0])
+            bar_exists = self.app.frame_1.bar_exists(x=x_from)
+            if bar_exists is True:
+                if self.app.frame_1.validate_new_bar_pos(x_from, x_to) is True:
+                    self.app.frame_1.move_bar(x_from, x_to)
+                    print("view_1: A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                        x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                        x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                        x_from=x_from, x_to=x_to
+                        )
+                    )
+                else:
+                    print("view_1: A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
+                        x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                        x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                        x_from=x_from, x_to=x_to
+                        )
+                    )
+            else:
+                print("view_1: No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                    x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                    x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                    x_from=x_from, x_to=x_to
+                    )
+                )
+
+    def record_button_3_down(self, event) -> None:
+        self.button_3_down_coord:Tuple[int, int] = (event.x, event.y)
+
+    def record_button_3_up(self, event) -> None:
+        self.button_3_up_coord:Tuple[int, int] = (event.x, event.y)
+        if self.button_3_down_coord == self.button_3_up_coord:
+            x = self.app.convert_x_pos(event.x)
+            x_bar_pos = self.app.frame_1.get_closest_bar(x=x)
+            if x_bar_pos is None:
+                print(f"view_1: No bar to delete from: {event.x} {event.y} | {x}")
+            else:
+                self.app.frame_1.remove_bar(x_bar_pos)
+                print(f"view_1: A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
+        else:
+            pass
+
+    def hover_canvas_in(self, event) -> None:
+        self.app.frame_1.axes.set_facecolor((0.96, 0.96, 0.96))
+        self.app.frame_1.canvas.draw()
+
+    def hover_canvas_out(self, event) -> None:
+        self.app.frame_1.axes.set_facecolor((1.0, 1.0, 1.0))
+        self.app.frame_1.canvas.draw()
+    
+
+class MouseEvents_2():
+    def __init__(self, frame) -> None:
+        # -- init class --
+        self.frame = frame
+
+        # -- mouse click --
+        # self.app.bind('<Button-3>', self.delete_bar)               # right click: delete bar
+        self.app.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left click down: locate bar to move (previous position)
+        self.app.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left click up: new location of bar (new position)
+        
+        # could add events to highlight the bar that is being hovered
+        # <Enter>           The mouse pointer entered the widget (this event doesn’t mean that the user pressed the Enter key!).
+        # <Leave>           The mouse pointer left the widget.
+
+    # -- click events -----------------------------------------------
+
+    def record_button_1_down(self, event) -> None:
+        self.button_1_down_coord:Tuple[int, int] = (event.x, event.y)
+
+    def record_button_1_up(self, event) -> None:
+        self.button_1_up_coord:Tuple[int, int] = (event.x, event.y)
+        if self.button_1_down_coord == self.button_1_up_coord:
+            print("A new bar should be inserted at: {x} {y}".format(x=event.x, y=event.y))
+        else:
+            print("A bar is moved from: {x0} {y0} to {x1} {y1}".format(
+                x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                )
+            )
+
+    # def insert_bar(self, event) -> None:
+    #     """Adds a new bar to the graph."""
+    #     bar_exists:bool = self.bar_exists(proximity=3)
+    #     if bar_exists is True:
+    #         print("A bar already exists at: {x} {y}".format(x=event.x, y=event.y))
+    #     elif bar_exists is False:
+    #         print("A new bar is inserted at: {x} {y}".format(x=event.x, y=event.y))
+    #     else:
+    #         raise ValueError("boolean return expected in 'bar_exists'.")
+    
+    # def delete_bar(self, event) -> None:
+    #     """Deletes a bar from the graph."""
+    #     bar_exists:bool = self.bar_exists(proximity=3)
+    #     if bar_exists is True:
+    #         print("A bar is deleted at: {x} {y}".format(x=event.x, y=event.y))
+    #     elif bar_exists is False:
+    #         print("No bar to delete at: {x} {y}".format(x=event.x, y=event.y))
+    #     else:
+    #         raise ValueError("boolean return expected in 'bar_exists'.")
+
+    # def move_bar(self, event) -> None:
+    #     bar_exists:bool = self.bar_exists(proximity=3)
+    #     if bar_exists is True:
+    #         print(self.bar_on_hand)
+    #         self.bar_on_hand = True
+    #         print("A bar is moved from: {x} {y}".format(x=event.x, y=event.y))
+    #         print(self.bar_on_hand)
+    #     elif bar_exists is False:
+    #         print("No bar to move from: {x} {y}".format(x=event.x, y=event.y))
+    #     else:
+    #         raise ValueError("boolean return expected in 'bar_exists'.")
+
+    # -- edit support -----------------------------------------------
+    # def bar_exists(self, proximity:int=3) -> bool:
+    #     """
+    #         Checks if a bar already exists within a range of +/- half of the proximity.
+
+    #         Args:
+    #             proximity (int,float): proximity in relative terms (e.g. 0.03: means area of 1.5% window size to the left & right of a bar)
+    #     """
+    #     return False
+
+
+class Editing_old():
     def __init__(self, parent) -> None:
         # -- init class --
         self.app = parent
@@ -484,16 +650,19 @@ class Editing():
 class View1():
     def __init__(self, parent) -> None:
         self.app = parent
+        self.bar_pos:List[Optional[int]] = []
 
+        # -- init plot --
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
         self.axes = self.figure.add_subplot()
 
+        # -- adjust axes style --
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
         self.axes.grid(axis="x")
-
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
+        # -- init canvas --
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_1)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
 
@@ -501,7 +670,50 @@ class View1():
         self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
         self.axes.grid(axis="x")
+        for x in self.bar_pos:
+            self.axes.axvline(x=x, color='red')
         self.canvas.draw()
+    
+    def insert_bar(self, x:Union[int,float]) -> None:
+        self.bar_pos += [x]
+        self.axes.axvline(x=x, color='red', gid=str(x))
+        self.canvas.draw()
+    
+    def remove_bar(self, x:Union[int,float]) -> None:
+        self.bar_pos.remove(x)
+        for c in self.axes.lines:
+            if c.get_gid() == str(x):
+                c.remove()
+        self.canvas.draw()
+    
+    def move_bar(self, x_from:Union[int,float], x_to:Union[int,float]) -> None:
+        # -- update memory --
+        self.bar_pos.remove(x_from)
+        self.bar_pos += [x_to]
+
+        # -- delete line from previous position --
+        for c in self.axes.lines:
+            if c.get_gid() == str(x_from):
+                c.remove()
+        
+        # -- insert line at new position --
+        self.axes.axvline(x=x_to, color='red', gid=str(x_to))
+        self.canvas.draw()
+
+    # def remove_bar(self, x):
+    #     """Old solution, new one is better (see above)."""
+    #     self.bar_pos.remove(x)
+    #     self.axes.cla()
+    #     try:
+    #         self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
+    #     except Exception:
+    #         pass
+    #     finally:
+    #         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+    #         self.axes.grid(axis="x")
+    #     for x in self.bar_pos:
+    #         self.axes.axvline(x=x, color='red')
+    #     self.canvas.draw()
     
     def reload_axis(self):
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
@@ -510,6 +722,75 @@ class View1():
     def clear_plot(self):
         self.axes.cla()
         self.canvas.draw()
+
+    # -- CHECKS -----------------------------------------------------
+
+    def bar_exists(self, x:Union[int,float], window_perc:float = 0.013) -> bool:
+        """
+            Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
+            Returns the exact position of the bar if found, otherwise returns None.
+
+            Args:
+                x (int,float): x position of the bar in the graph
+                window_perc (float): how large is the window in percent (relative to the displayed graph limits), in which the bar should exist?
+            
+            Returns:
+                (bool): Returns True if a bar exists within proximity, otherwise returns False.
+        """
+        deviation = ((0.5 * window_perc) * (self.app.x_max_glob - self.app.x_min_glob))
+        lower_bound = x - deviation
+        upper_bound = x + deviation
+        
+        results = [x for x in self.bar_pos if lower_bound < x < upper_bound]
+        
+        if len(results) == 0:
+            return False
+        else:
+            return True
+    
+    def get_closest_bar(self, x:Union[int,float], window_perc:float = 0.01) -> Optional[Union[int,float]]:
+        """
+            Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
+            Returns the exact position of the bar if found, otherwise returns None.
+
+            Args:
+                x (int,float): x position of the bar in the graph
+                window_perc (float): how large is the window in percent (relative to the displayed graph limits), in which the bar should exist?
+            
+            Returns:
+                (None,int,float): Returns the x position of a bar within the specified range in case it was found, otherwise returns None.
+        """
+        deviation = ((0.5 * window_perc) * (self.app.x_max_glob - self.app.x_min_glob))
+        lower_bound = x - deviation
+        upper_bound = x + deviation
+        
+        results = [x for x in self.bar_pos if lower_bound < x < upper_bound]
+        
+        if len(results) == 0:
+            return None
+        else:
+            return min(results, key=lambda list_item:abs(list_item-x))
+
+    def validate_new_bar_pos(self, x_from:Union[int,float], x_to:Union[int,float]) -> bool:
+        """
+            Checks if the new position of the bar is not out bounds, i.e. it can not cross another bar.
+            Only useful when moving a bar to a new position.
+
+            Args:
+                x_from (int,float): previous x position on the plot
+                x_to (int,float): new x position on the plot
+
+            Returns:
+                (bool): returns True if the new position fulfills the check, otherwise False if it fails the check.
+        """
+        for x in self.bar_pos:
+            if x <= x_from and x < x_to:
+                continue
+            elif x >= x_from and x > x_to:
+                continue
+            else:
+                return False
+        return True
 
 
 class View2():
@@ -631,18 +912,18 @@ class App(tk.Tk):
         self.data_2_reduced = self.data_container()
 
         # -- init global x axis (in seconds) --
-        self.x_min_glob:Union[int,float] = 0
-        self.x_max_glob:Union[int,float] = 60
+        self.x_min_glob:Union[int,float] = 0 # lower bound within the currently visible frame
+        self.x_max_glob:Union[int,float] = 1 # upper bound within the currently visible frame
 
-        self.x_lower_bound_glob:Union[int,float] = 0
-        self.x_upper_bound_glob:Union[int,float] = 60
+        self.x_lower_bound_glob:Union[int,float] = 0 # lower bound of the entire series
+        self.x_upper_bound_glob:Union[int,float] = 1 # upper bound of the entire series
 
         # -- init menubar --
         menubar = MenuBar(self)
         self.config(menu=menubar)
 
         # -- add editing events --
-        # _ = Editing(self)
+        mouse_events_view_1 = MouseEvents_1(self)
     
     class data_container():
         def __init__(self) -> None:
@@ -665,10 +946,24 @@ class App(tk.Tk):
             x3 = 0
 
         self.x_min_glob = 0
-        self.x_max_glob = max(60, x1, x2, x3)
+        self.x_max_glob = max(1, x1, x2, x3)
 
         self.x_lower_bound_glob = 0
-        self.x_upper_bound_glob = max(60, x1, x2, x3)
+        self.x_upper_bound_glob = max(1, x1, x2, x3)
+    
+    def convert_x_pos(self, x) -> Union[int,float]:
+        """
+            Converts the x position from widget position to axis position.
+
+            Args:
+                x (int): x position on the widget
+            
+            Returns:
+                (int, float): x position on the plot
+        """
+        return ( x / self.winfo_width() ) * ( self.x_max_glob - self.x_min_glob) + self.x_min_glob
+    
+
 
 
 if __name__ == "__main__":
