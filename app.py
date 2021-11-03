@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
+import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ from typing import List, Optional, Tuple, Union
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
+from scipy.interpolate.interpolate import interp1d
 
 from dtw import DTW, MidiIO
 
@@ -515,7 +517,8 @@ class MouseEvents_1():
 class View1():
     def __init__(self, parent) -> None:
         self.app = parent
-        self.bar_pos:List[Optional[int]] = []
+        self.bar_pos:pd.DataFrame = pd.DataFrame(columns=["time abs (sec)", "time abs (sec) remapped"])
+        # self.bar_pos:List[Optional[int]] = []
 
         # -- init plot --
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
@@ -535,17 +538,27 @@ class View1():
         self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
         self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
         self.axes.grid(axis="x")
-        for x in self.bar_pos:
+        # for x in self.bar_pos:
+        for x in self.bar_pos["time abs (sec) remapped"]:
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
-    
+        
     def insert_bar(self, x:Union[int,float]) -> None:
-        self.bar_pos += [x]
+        # self.bar_pos += [x]
+        self.bar_pos = self.bar_pos.append(
+            {
+                'time abs (sec)': x, 
+                'time abs (sec) remapped': x
+            },
+            ignore_index=True)
+
         self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
     
     def remove_bar(self, x:Union[int,float]) -> None:
-        self.bar_pos.remove(x)
+        # check if this bar has a dtw mapping, if yes, apply dtw... else just plot
+        # self.bar_pos.remove(x)
+        self.bar_pos = self.bar_pos.drop(self.bar_pos[self.bar_pos["time abs (sec) remapped"] == x].index)
         for c in self.axes.lines:
             if c.get_gid() == str(x):
                 c.remove()
@@ -553,16 +566,27 @@ class View1():
     
     def move_bar(self, x_from:Union[int,float], x_to:Union[int,float]) -> None:
         # -- update memory --
-        self.bar_pos.remove(x_from)
-        self.bar_pos += [x_to]
-
-        # -- delete line from previous position --
-        for c in self.axes.lines:
-            if c.get_gid() == str(x_from):
-                c.remove()
+        # self.bar_pos.remove(x_from)
+        self.bar_pos = self.bar_pos.drop(self.bar_pos[self.bar_pos["time abs (sec) remapped"] == x_from].index)
+        # self.bar_pos += [x_to]
+        self.bar_pos = self.bar_pos.append(
+            {
+                'time abs (sec)': x_from, 
+                'time abs (sec) remapped': x_to
+            },
+            ignore_index=True)
         
-        # -- insert line at new position --
-        self.axes.axvline(x=x_to, color='red', gid=str(x_to))
+        # # -- insert line at new position --
+        closest_bars = self.get_closest_bars(x=x_to)
+        print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+        self.apply_dtw_from_bars(x_lower_bound=closest_bars[0], x_upper_bound=closest_bars[1])
+        self.axes.cla()
+        self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
+        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.grid(axis="x")
+        # for x in self.bar_pos:
+        for x in self.bar_pos["time abs (sec) remapped"]:
+            self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
 
     def reload_axis(self):
@@ -587,23 +611,30 @@ class View1():
         """
         return ( x / self.app.winfo_width() ) * ( self.app.x_max_glob - self.app.x_min_glob) + self.app.x_min_glob
     
-    def bar_exists(self, x:Union[int,float], window_perc:float = 0.013) -> bool:
+    def bar_exists(self, x:Union[int,float], window_perc:Optional[float] = 0.013) -> bool:
         """
             Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
             Returns the exact position of the bar if found, otherwise returns None.
 
             Args:
-                x (int,float): x position of the bar in the graph
+                x (None,int,float): x position of the bar in the graph
                 window_perc (float): how large is the window in percent (relative to the displayed graph limits), in which the bar should exist?
             
             Returns:
                 (bool): Returns True if a bar exists within proximity, otherwise returns False.
         """
+        if window_perc is None or window_perc == 0 or window_perc == 0.0:
+            if x in list(self.bar_pos["time abs (sec) remapped"]):
+                return True
+            else:
+                return False
+
         deviation = ((0.5 * window_perc) * (self.app.x_max_glob - self.app.x_min_glob))
         lower_bound = x - deviation
         upper_bound = x + deviation
         
-        results = [x for x in self.bar_pos if lower_bound < x < upper_bound]
+        # results = [x for x in self.bar_pos if lower_bound < x < upper_bound]
+        results = [x for x in self.bar_pos["time abs (sec) remapped"] if lower_bound < x < upper_bound]
         
         if len(results) == 0:
             return False
@@ -626,12 +657,34 @@ class View1():
         lower_bound = x - deviation
         upper_bound = x + deviation
         
-        results = [x for x in self.bar_pos if lower_bound < x < upper_bound]
+        # results = [x for x in self.bar_pos if lower_bound < x < upper_bound]
+        results = [x for x in self.bar_pos["time abs (sec) remapped"] if lower_bound < x < upper_bound]
         
         if len(results) == 0:
             return None
         else:
             return min(results, key=lambda list_item:abs(list_item-x))
+
+    def get_closest_bars(self, x:Union[int,float]) -> Tuple[Union[int,float], Union[int,float]]:
+        """
+            Returns the closest bars on both sides relative to a specified x position.
+
+            Args:
+                x (int,float): x position on the graph
+
+            Returns:
+                (Tuple[Union[int,float], Union[int,float]]): returns the closest bars on both sides relative to a specified x position.
+        """
+        candidates_lower_all = list(self.bar_pos["time abs (sec) remapped"]) + [self.app.x_lower_bound_glob]
+        candidates_upper_all = list(self.bar_pos["time abs (sec) remapped"]) + [self.app.x_upper_bound_glob]
+
+        candidates_lower = [k for k in candidates_lower_all if k < x]
+        candidates_upper = [k for k in candidates_upper_all if k > x]
+        
+        result_lower = min(candidates_lower, key=lambda list_item:abs(list_item-x))
+        result_upper = min(candidates_upper, key=lambda list_item:abs(list_item-x))
+        
+        return (result_lower, result_upper)
 
     def validate_new_bar_pos(self, x_from:Union[int,float], x_to:Union[int,float]) -> bool:
         """
@@ -645,7 +698,8 @@ class View1():
             Returns:
                 (bool): returns True if the new position fulfills the check, otherwise False if it fails the check.
         """
-        for x in self.bar_pos:
+        # for x in self.bar_pos:
+        for x in self.bar_pos["time abs (sec) remapped"]:
             if x <= x_from and x < x_to:
                 continue
             elif x >= x_from and x > x_to:
@@ -653,6 +707,27 @@ class View1():
             else:
                 return False
         return True
+
+    def apply_dtw_from_bars(self, x_lower_bound:Union[int,float], x_upper_bound:Union[int,float]) -> None:
+        # -- define mappings --
+        # x:       time (sec)
+        # f(x), y: time (sec) remapped
+        x = [self.app.x_lower_bound_glob] + list(self.bar_pos["time abs (sec)"]) + [self.app.x_upper_bound_glob]
+        y = [self.app.x_lower_bound_glob] + list(self.bar_pos["time abs (sec) remapped"]) + list([self.app.x_upper_bound_glob])
+
+        x = np.array(x)
+        y = np.array(y)
+
+        # -- interpolation methods --
+        f = interp1d(x, y, fill_value='extrapolate')
+
+        # -- update data -- (only updates data within the relevant range.)
+        data = self.app.data_1_reduced.x_raw
+
+        idx_start = np.searchsorted(data, x_lower_bound)
+        idx_end = np.searchsorted(data, x_upper_bound)
+
+        self.app.data_1_reduced.x_raw[idx_start:idx_end] = [f(x) for x in data[idx_start:idx_end]]
 
 
 class View2():
@@ -816,7 +891,7 @@ class App(tk.Tk):
 
 if __name__ == "__main__":
     # -- init app --
-    app=App()
+    app = App()
 
     # -- run app --
     app.mainloop()
