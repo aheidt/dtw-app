@@ -1,22 +1,126 @@
+# -------------------------------------------------------------------
+# Imports
+# -------------------------------------------------------------------
+
+# -- tkinter --
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
+
+# -- utils --
 import numpy as np
 import pandas as pd
 import os
+from typing import List, Optional, Tuple, Union
+
+# -- plotting --
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import matplotlib.collections
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from typing import List, Optional, Tuple, Union
 
+# -- dtw --
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 from scipy.interpolate.interpolate import interp1d
 
+# -- custom --
 from dtw import DTW, MidiIO
 
+
+# -------------------------------------------------------------------
+# APP
+# -------------------------------------------------------------------
+
+class App(tk.Tk):
+    def __init__(self) -> None:
+        tk.Tk.__init__(self)
+
+        # -------------------------------------------------
+        # DATA (model)
+        # -------------------------------------------------
+
+        # -- init constants --
+        self.downsampling_factor:int = 50 # only plot every 50th data point from .wav for performance reasons
+
+        # -- init data containers --
+        self.data_1 = Data1(self)
+        self.data_2 = Data2(self)
+        self.data_3 = Data3(self)
+
+        # -------------------------------------------------
+        # VIEWS (view)
+        # -------------------------------------------------
+
+        # -- window style --
+        self.geometry('1200x600')
+        self.title("Dynamic Time Warp Tool")
+
+        # -- init constants --
+        self.x_min:Union[int,float] = 0 # xlim of current view
+        self.x_max:Union[int,float] = 1 # xlim of current view
+        self.x_min_glob:Union[int,float] = 0 # lowest xlim that is allowed
+        self.x_max_glob:Union[int,float] = 1 # highest xlim that is allowed
+
+        # -- init views --
+        self.view_1 = View1(self)
+        self.view_2 = View2(self)
+        self.view_3 = View3(self)
+
+        # -------------------------------------------------
+        # EVENTS (controller)
+        # -------------------------------------------------
+
+        # -- init menubar --
+        menubar = MenuBar(self)
+        self.config(menu=menubar)
+
+        # -- init events --
+        self.events_1 = Events1(self)
+        self.events_2 = Events2(self)
+        self.events_3 = Events3(self)
+
+    # -- MISC ---------------------------------------------
+
+    def reset_bounds(self) -> None:
+        try:
+            x1 = self.data_1.x[-1:][0]
+        except Exception:
+            x1 = 0
+        
+        try:
+            x2 = self.data_2.x[-1:][0]
+        except Exception:
+            x2 = 0
+        
+        try:
+            x3 = self.data_3.df_midi["time abs (sec)"][-1:].item()
+        except Exception:
+            x3 = 0
+
+        self.x_min = 0
+        self.x_max = max(1, x1, x2, x3)
+
+        self.x_min_glob = 0
+        self.x_max_glob = max(1, x1, x2, x3)
+
+    def convert_x_pos(self, x) -> Union[int,float]:
+        """
+            Converts the x position from widget position to axis position.
+
+            Args:
+                x (int): x position on the widget
+            
+            Returns:
+                (int, float): x position on the plot
+        """
+        return ( x / self.winfo_width() ) * ( self.x_max - self.x_min) + self.x_min
+
+
+# -------------------------------------------------------------------
+# MenuBar
+# -------------------------------------------------------------------
 
 class MenuBar(tk.Menu):
     def __init__(self, parent) -> None:
@@ -93,132 +197,130 @@ class MenuBar(tk.Menu):
     # -- FILE -------------------------------------------------------
 
     def new(self) -> None:
+        self.app.x_min = 0
+        self.app.x_max = 1
         self.app.x_min_glob = 0
-        self.app.x_max_glob = 60
-        self.app.x_lower_bound_glob = 0
-        self.app.x_upper_bound_glob = 60
-        self.app.frame_1.clear_plot()
-        self.app.frame_2.clear_plot()
+        self.app.x_max_glob = 1
+        self.app.view_1.clear_plot()
+        self.app.view_2.clear_plot()
 
     def restart(self) -> None:
         self.app.destroy()
         app=App()
         app.mainloop()
 
-    # ---------------------------------
+    # ---------------------------------------------------------------
 
     def on_open_wav_original(self) -> None:
-        self.app.data_1.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
+        self.app.data_1.filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
 
         try:
             # -- load wav --
-            self.app.data_1.y_raw, self.app.data_1.fs = librosa.load(self.app.data_1.filename)
+            self.app.data_1.y, self.app.data_1.fs = librosa.load(self.app.data_1.filename)
 
             # -- convert time to seconds for x axis--
-            x_num_steps = len(self.app.data_1.y_raw)
-            time_length = len(self.app.data_1.y_raw) / self.app.data_1.fs
-            self.app.data_1.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+            x_num_steps = len(self.app.data_1.y)
+            time_length = len(self.app.data_1.y) / self.app.data_1.fs
+            self.app.data_1.x = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
             # -- create reduced sample for plotting --
-            self.app.data_1_reduced.y_raw = self.app.data_1.y_raw[::self.app.downsampling_factor]
-            self.app.data_1_reduced.x_raw = self.app.data_1.x_raw[::self.app.downsampling_factor]
+            self.app.data_1.y_sm = self.app.data_1.y[::self.app.downsampling_factor]
+            self.app.data_1.x_sm = self.app.data_1.x[::self.app.downsampling_factor]
 
             # -- update x axis limits & bound --
-            self.app.x_min_glob = 0
-            if self.app.data_1.x_raw[-1:][0] > self.app.x_max_glob:
-                self.app.x_max_glob = self.app.data_1.x_raw[-1:][0]
-            if self.app.data_1.x_raw[-1:][0] > self.app.x_upper_bound_glob:
-                self.app.x_upper_bound_glob = self.app.data_1.x_raw[-1:][0]
+            self.app.x_min = 0
+            if self.app.data_1.x[-1:][0] > self.app.x_max:
+                self.app.x_max = self.app.data_1.x[-1:][0]
+            if self.app.data_1.x[-1:][0] > self.app.x_max_glob:
+                self.app.x_max_glob = self.app.data_1.x[-1:][0]
             
             # -- draw graph --
-            self.app.frame_1.clear_plot()
-            self.app.frame_1.get_plot()
+            self.app.view_1.clear_plot()
+            self.app.view_1.get_plot()
 
             # -- trigger axis adjustment --
             self.app.reset_bounds()
-            self.app.frame_1.reload_axis()
-            self.app.frame_2.reload_axis()
-            self.app.frame_3.reload_axis()
+            self.app.view_1.reload_axis()
+            self.app.view_2.reload_axis()
+            self.app.view_3.reload_axis()
 
         except Exception as e:
             messagebox.showerror("Error Message", "Could not load file: {file_wav_original}".format(file_wav_original=self.app.data_1.filename))
             messagebox.showerror("Python Error", repr(e))
 
     def on_open_wav_from_midi(self) -> None:
-        self.app.data_2.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("wav files","*.wav;"),("All files","*.*")))
+        self.app.data_2.filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
         
         try:
             # -- load wav --
-            self.app.data_2.y_raw, self.app.data_2.fs = librosa.load(self.app.data_2.filename)
+            self.app.data_2.y, self.app.data_2.fs = librosa.load(self.app.data_2.filename)
 
-            # -- convert time to seconds for x axis--
-            x_num_steps = len(self.app.data_2.y_raw)
-            time_length = len(self.app.data_2.y_raw) / self.app.data_2.fs
-            self.app.data_2.x_raw = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
+            # -- convert time to seconds for x axis --
+            x_num_steps = len(self.app.data_2.y)
+            time_length = len(self.app.data_2.y) / self.app.data_2.fs
+            self.app.data_2.x = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
             # -- create reduced sample for plotting --
-            self.app.data_2_reduced.y_raw = self.app.data_2.y_raw[::self.app.downsampling_factor]
-            self.app.data_2_reduced.x_raw = self.app.data_2.x_raw[::self.app.downsampling_factor]
+            self.app.data_2.y_sm = self.app.data_2.y[::self.app.downsampling_factor]
+            self.app.data_2.x_sm = self.app.data_2.x[::self.app.downsampling_factor]
 
             # -- update x axis limits & bound --
-            self.app.x_min_glob = 0
-            if self.app.data_2.x_raw[-1:][0] > self.app.x_max_glob:
-                self.app.x_max_glob = self.app.data_2.x_raw[-1:][0]
-            if self.app.data_2.x_raw[-1:][0] > self.app.x_upper_bound_glob:
-                self.app.x_upper_bound_glob = self.app.data_2.x_raw[-1:][0]
+            self.app.x_min = 0
+            if self.app.data_2.x[-1:][0] > self.app.x_max:
+                self.app.x_max = self.app.data_2.x[-1:][0]
+            if self.app.data_2.x[-1:][0] > self.app.x_max_glob:
+                self.app.x_max_glob = self.app.data_2.x[-1:][0]
             
             # -- draw graph --
-            self.app.frame_2.clear_plot()
-            self.app.frame_2.get_plot()
+            self.app.view_2.clear_plot()
+            self.app.view_2.get_plot()
 
             # -- trigger axis adjustment --
             self.app.reset_bounds()
-            self.app.frame_1.reload_axis()
-            self.app.frame_2.reload_axis()
-            self.app.frame_3.reload_axis()
+            self.app.view_1.reload_axis()
+            self.app.view_2.reload_axis()
+            self.app.view_3.reload_axis()
 
         except Exception as e:
             messagebox.showinfo("Could not load file: {file_wav_from_midi}".format(file_wav_from_midi=self.app.data_2.filename))
             messagebox.showerror("Internal Error Message", repr(e))
         
-        # self.app.frame_2.get_plot()
-
     def on_open_midi(self) -> None:
-        self.app.data_3.filename = filedialog.askopenfilename(initialdir = "/",title = "Open file",filetypes = (("MIDI files","*.mid;*.MID"),("All files","*.*")))
-    
+        self.app.data_3.filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
+
         try:
             # -- load midi --
             self.app.data_3.df_midi = MidiIO.midi_to_df(file_midi=self.app.data_3.filename, clip_t0=False)
 
             # -- update x axis limits & bound --
-            self.app.x_min_glob = 0
+            self.app.x_min = 0
+            if self.app.data_3.df_midi["time abs (sec)"][-1:].item() > self.app.x_max:
+                self.app.x_max = self.app.data_3.df_midi["time abs (sec)"][-1:].item()
             if self.app.data_3.df_midi["time abs (sec)"][-1:].item() > self.app.x_max_glob:
                 self.app.x_max_glob = self.app.data_3.df_midi["time abs (sec)"][-1:].item()
-            if self.app.data_3.df_midi["time abs (sec)"][-1:].item() > self.app.x_upper_bound_glob:
-                self.app.x_upper_bound_glob = self.app.data_3.df_midi["time abs (sec)"][-1:].item()
             
             # -- draw graph --
-            self.app.frame_3.clear_plot()
-            self.app.frame_3.get_plot()
+            self.app.view_3.clear_plot()
+            self.app.view_3.get_plot()
 
             # -- trigger axis adjustment --
             self.app.reset_bounds()
-            self.app.frame_1.reload_axis()
-            self.app.frame_2.reload_axis()
-            self.app.frame_3.reload_axis()
+            self.app.view_1.reload_axis()
+            self.app.view_2.reload_axis()
+            self.app.view_3.reload_axis()
 
         except Exception as e:
             messagebox.showinfo("Could not load file: {file_midi}".format(file_midi=self.app.data_3.filename))
             messagebox.showerror("Internal Error Message", repr(e))
-
-        # self.app.frame_3.get_plot()
     
-    # ---------------------------------
+    # ---------------------------------------------------------------
 
     def on_save_midi(self) -> None:
-        self.app.file_midi_save = filedialog.asksaveasfilename(initialdir = "/",title = "Save as",filetypes = (("MIDI files","*.midi;*.MIDI"),("All files","*.*")))
+        self.app.data_3.filename_out = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
+        print(f"Saving midi file to: {self.app.data_3.filename_out}")
+        # to do: actually saving the midi file
 
-    # ---------------------------------
+    # ---------------------------------------------------------------
 
     def exit_app(self) -> None:
         self.app.destroy()
@@ -227,7 +329,7 @@ class MenuBar(tk.Menu):
 
     def apply_dtw_algo(self) -> None:
         # -- compute DTW time mappings --
-        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y_raw, y_raw=self.app.data_2.y_raw, fs=self.app.data_1.fs, df_midi=None)
+        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y_raw, y_raw=self.app.views.view_2.data.y, fs=self.app.data_1.fs, df_midi=None)
         print("Computing chroma features...")
         self.app.dtw_obj.compute_chroma_features()
         print("Computing DTW...")
@@ -239,22 +341,22 @@ class MenuBar(tk.Menu):
         print("Remapping midi...")
         self.app.data_3.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_3.df_midi["time abs (sec)"]]
         print("Remapping wav...")
-        self.app.data_2_reduced.x_raw = [self.app.dtw_obj.f(x) for x in self.app.data_2_reduced.x_raw]
+        self.app.data_2.x_sm = [self.app.dtw_obj.f(x) for x in self.app.data_2.x_sm]
 
         # -- draw graphs --
         print("Redrawing graphs")
-        self.app.frame_2.clear_plot()
-        self.app.frame_2.get_plot()
+        self.app.view_2.clear_plot()
+        self.app.view_2.get_plot()
 
-        self.app.frame_3.clear_plot()
-        self.app.frame_3.get_plot()
+        self.app.view_3.clear_plot()
+        self.app.view_3.get_plot()
 
         # -- trigger axis adjustment --
         print("Resetting axis")
         self.app.reset_bounds()
-        self.app.frame_1.reload_axis()
-        self.app.frame_2.reload_axis()
-        self.app.frame_3.reload_axis()
+        self.app.view_1.reload_axis()
+        self.app.view_2.reload_axis()
+        self.app.view_3.reload_axis()
 
         print("Done")
 
@@ -271,80 +373,80 @@ class MenuBar(tk.Menu):
 
     def zoom_in(self) -> None:
         # -- adjust x axis limits --
-        zoom_amount = ((self.app.x_max_glob - self.app.x_min_glob) * 1/3) * 0.5
+        zoom_amount = ((self.app.x_max - self.app.x_min) * 1/3) * 0.5
 
-        self.app.x_min_glob += zoom_amount
-        self.app.x_max_glob -= zoom_amount
+        self.app.x_min += zoom_amount
+        self.app.x_max -= zoom_amount
 
         # -- trigger axis adjustment --
-        self.app.frame_1.reload_axis()
-        self.app.frame_2.reload_axis()
-        self.app.frame_3.reload_axis()
+        self.app.view_1.reload_axis()
+        self.app.view_2.reload_axis()
+        self.app.view_3.reload_axis()
 
     def zoom_out(self) -> None:
         # -- adjust x axis limits --
-        zoom_amount = ((self.app.x_max_glob - self.app.x_min_glob) * 0.5) * 0.5
+        zoom_amount = ((self.app.x_max - self.app.x_min) * 0.5) * 0.5
 
-        self.app.x_min_glob -= zoom_amount
-        self.app.x_max_glob += zoom_amount
+        self.app.x_min -= zoom_amount
+        self.app.x_max += zoom_amount
 
         # -- adjust xlim to avoid going outside the bounds --
-        if self.app.x_min_glob < self.app.x_lower_bound_glob and self.app.x_max_glob > self.app.x_upper_bound_glob:
-            self.app.x_min_glob = self.app.x_lower_bound_glob
-            self.app.x_max_glob = self.app.x_upper_bound_glob
-        elif self.app.x_min_glob < self.app.x_lower_bound_glob:
-            self.app.x_min_glob = self.app.x_lower_bound_glob
-            self.app.x_max_glob += self.app.x_lower_bound_glob - self.app.x_min_glob
-        elif self.app.x_max_glob > self.app.x_upper_bound_glob:
-            self.app.x_max_glob = self.app.x_upper_bound_glob
-            self.app.x_min_glob += self.app.x_upper_bound_glob - self.app.x_max_glob
+        if self.app.x_min < self.app.x_min_glob and self.app.x_max > self.app.x_max_glob:
+            self.app.x_min = self.app.x_min_glob
+            self.app.x_max = self.app.x_max_glob
+        elif self.app.x_min < self.app.x_min_glob:
+            self.app.x_min = self.app.x_min_glob
+            self.app.x_max += self.app.x_min_glob - self.app.x_min
+        elif self.app.x_max > self.app.x_max_glob:
+            self.app.x_max = self.app.x_max_glob
+            self.app.x_min += self.app.x_max_glob - self.app.x_max
         else:
             pass
 
         # -- trigger axis adjustment --
-        self.app.frame_1.reload_axis()
-        self.app.frame_2.reload_axis()
-        self.app.frame_3.reload_axis()
+        self.app.view_1.reload_axis()
+        self.app.view_2.reload_axis()
+        self.app.view_3.reload_axis()
 
     def scroll_right(self) -> None:
         # -- adjust x axis limits --
-        window_width:Union[int,float] = self.app.x_max_glob - self.app.x_min_glob
+        window_width:Union[int,float] = self.app.x_max - self.app.x_min
         scroll_amount:Union[int,float] = window_width * 0.18
 
-        self.app.x_min_glob += scroll_amount
-        self.app.x_max_glob += scroll_amount
+        self.app.x_min += scroll_amount
+        self.app.x_max += scroll_amount
 
         # -- adjust xlim to avoid going outside the bounds --
-        if self.app.x_max_glob > self.app.x_upper_bound_glob:
-            self.app.x_min_glob = self.app.x_upper_bound_glob - window_width
-            self.app.x_max_glob = self.app.x_upper_bound_glob
+        if self.app.x_max > self.app.x_max_glob:
+            self.app.x_min = self.app.x_max_glob - window_width
+            self.app.x_max = self.app.x_max_glob
         else:
             pass
 
         # -- trigger axis adjustment --
-        self.app.frame_1.reload_axis()
-        self.app.frame_2.reload_axis()
-        self.app.frame_3.reload_axis()
+        self.app.view_1.reload_axis()
+        self.app.view_2.reload_axis()
+        self.app.view_3.reload_axis()
 
     def scroll_left(self) -> None:
         # -- adjust x axis limits --
-        window_width:Union[int,float] = self.app.x_max_glob - self.app.x_min_glob
+        window_width:Union[int,float] = self.app.x_max - self.app.x_min
         scroll_amount:Union[int,float] = window_width * 0.18
 
-        self.app.x_min_glob -= scroll_amount
-        self.app.x_max_glob -= scroll_amount
+        self.app.x_min -= scroll_amount
+        self.app.x_max -= scroll_amount
 
         # -- adjust xlim to avoid going outside the bounds --
-        if self.app.x_min_glob < self.app.x_lower_bound_glob:
-            self.app.x_min_glob = self.app.x_lower_bound_glob
-            self.app.x_max_glob = self.app.x_lower_bound_glob + window_width
+        if self.app.x_min < self.app.x_min_glob:
+            self.app.x_min = self.app.x_min_glob
+            self.app.x_max = self.app.x_min_glob + window_width
         else:
             pass
 
         # -- trigger axis adjustment --
-        self.app.frame_1.reload_axis()
-        self.app.frame_2.reload_axis()
-        self.app.frame_3.reload_axis()
+        self.app.view_1.reload_axis()
+        self.app.view_2.reload_axis()
+        self.app.view_3.reload_axis()
 
     # -- HELP -------------------------------------------------------
 
@@ -410,12 +512,71 @@ class MenuBar(tk.Menu):
         self.scroll_left()
 
 
-class MouseEvents_1():
-    """Mouse events for frame 1"""
+# -------------------------------------------------------------------
+# Data (model)
+# -------------------------------------------------------------------
 
-    def __init__(self, app) -> None:
+class Data1():
+    def __init__(self, parent) -> None:
+        # -- init parent --
+        self.app = parent
+
+        # -- data source --
+        self.filename = ""
+
+        # -- init dataset --
+        self.x = np.arange(0, 1.1, 0.1).round(2).tolist()
+        self.y = np.arange(0, 1.1, 0.1).round(2).tolist()
+        self.x_sm = np.arange(0, 1.1, 0.1).round(2).tolist() # small / reduced dataset
+        self.y_sm = np.arange(0, 1.1, 0.1).round(2).tolist() # small / reduced dataset
+        self.fs = None
+
+        # -- edit memory --
+        self.bars:List[Optional[Union[int,float]]] = []
+
+
+class Data2():
+    def __init__(self, parent) -> None:
+        # -- init parent --
+        self.app = parent
+
+        # -- data source --
+        self.filename = ""
+
+        # -- init dataset --
+        self.x = np.arange(0, 1.1, 0.1).round(2).tolist()
+        self.y = np.arange(0, 1.1, 0.1).round(2).tolist()
+        self.x_sm = np.arange(0, 1.1, 0.1).round(2).tolist() # small / reduced dataset
+        self.y_sm = np.arange(0, 1.1, 0.1).round(2).tolist() # small / reduced dataset
+        self.fs = None
+
+        # -- edit memory --
+        self.bars:List[Optional[Union[int,float]]] = []
+
+
+class Data3():
+    def __init__(self, parent) -> None:
+        # -- init parent --
+        self.app = parent
+
+        # -- data source --
+        self.filename = ""
+
+        # -- init dataset --
+        self.df_midi:pd.DataFrame = pd.DataFrame()
+
+        # -- edit memory --
+        self.bars:List[Optional[Union[int,float]]] = []
+
+
+# -------------------------------------------------------------------
+# Events (controller)
+# -------------------------------------------------------------------
+
+class Events1():
+    def __init__(self, parent) -> None:
         # -- init class --
-        self.app = app
+        self.app = parent
 
         # -- click coordinate memory --
         self.button_1_down_coord:Tuple[int, int] = (None, None)
@@ -425,15 +586,15 @@ class MouseEvents_1():
         self.button_3_up_coord:Tuple[int, int] = (None, None)
 
         # -- mouse click --
-        self.app.frame_1.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
-        self.app.frame_1.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
+        self.app.view_1.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
+        self.app.view_1.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
 
-        self.app.frame_1.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
-        self.app.frame_1.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
+        self.app.view_1.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
+        self.app.view_1.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
 
         # -- hover canvas (hover bar would be nice too...) --
-        self.app.frame_1.canvas.get_tk_widget().bind("<Enter>", self.hover_canvas_in)  # mouse pointer entered the widget
-        self.app.frame_1.canvas.get_tk_widget().bind("<Leave>", self.hover_canvas_out) # mouse pointer left the widget
+        self.app.view_1.canvas.get_tk_widget().bind("<Enter>", self.hover_canvas_in)  # mouse pointer entered the widget
+        self.app.view_1.canvas.get_tk_widget().bind("<Leave>", self.hover_canvas_out) # mouse pointer left the widget
 
     # -- click events -----------------------------------------------
 
@@ -447,22 +608,22 @@ class MouseEvents_1():
 
         # -- create bar --
         if self.button_1_down_coord == self.button_1_up_coord:
-            x_pos = self.app.frame_1.convert_x_pos(self.button_1_up_coord[0])
-            bar_already_exists:bool = self.app.frame_1.bar_exists(x=x_pos)
+            x_pos = self.app.convert_x_pos(self.button_1_up_coord[0])
+            bar_already_exists:bool = self.app.view_1.bar_exists(x=x_pos)
             if bar_already_exists is True:
                 print(f"view_1: A bar already exists at: {event.x} {event.y} | {x_pos}")
             else:
-                self.app.frame_1.insert_bar(x_pos)
+                self.app.view_1.insert_bar(x_pos)
                 print(f"view_1: A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
         # -- move bar --
         else:
-            x_from = self.app.frame_1.convert_x_pos(self.button_1_down_coord[0])
-            x_to   = self.app.frame_1.convert_x_pos(self.button_1_up_coord[0])
-            x_closest_bar = self.app.frame_1.get_closest_bar(x_from)
+            x_from = self.app.convert_x_pos(self.button_1_down_coord[0])
+            x_to   = self.app.convert_x_pos(self.button_1_up_coord[0])
+            x_closest_bar = self.app.view_1.get_closest_bar(x_from)
             if x_closest_bar is not None:
-                if self.app.frame_1.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
-                    self.app.frame_1.move_bar(x_from=x_closest_bar, x_to=x_to)
+                if self.app.view_1.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
+                    self.app.view_1.move_bar(x_from=x_closest_bar, x_to=x_to)
                     print("view_1: A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                         x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                         x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
@@ -493,12 +654,12 @@ class MouseEvents_1():
         self.button_3_up_coord:Tuple[int, int] = (event.x, event.y)
         # -- delete bar --
         if self.button_3_down_coord == self.button_3_up_coord:
-            x = self.app.frame_1.convert_x_pos(event.x)
-            x_bar_pos = self.app.frame_1.get_closest_bar(x=x)
+            x = self.app.convert_x_pos(event.x)
+            x_bar_pos = self.app.view_1.get_closest_bar(x=x)
             if x_bar_pos is None:
                 print(f"view_1: No bar to delete from: {event.x} {event.y} | {x}")
             else:
-                self.app.frame_1.remove_bar(x_bar_pos)
+                self.app.view_1.remove_bar(x_bar_pos)
                 print(f"view_1: A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
             pass
@@ -506,18 +667,51 @@ class MouseEvents_1():
     # -- HOVER FRAME --
 
     def hover_canvas_in(self, event) -> None:
-        self.app.frame_1.axes.set_facecolor((0.96, 0.96, 0.96))
-        self.app.frame_1.canvas.draw()
+        self.app.view_1.axes.set_facecolor((0.96, 0.96, 0.96))
+        self.app.view_1.canvas.draw()
 
     def hover_canvas_out(self, event) -> None:
-        self.app.frame_1.axes.set_facecolor((1.0, 1.0, 1.0))
-        self.app.frame_1.canvas.draw()
+        self.app.view_1.axes.set_facecolor((1.0, 1.0, 1.0))
+        self.app.view_1.canvas.draw()
 
+
+class Events2():
+    def __init__(self, parent) -> None:
+        # -- init class --
+        self.app = parent
+
+        # -- click coordinate memory --
+        self.button_1_down_coord:Tuple[int, int] = (None, None)
+        self.button_1_up_coord:Tuple[int, int] = (None, None)
+
+        self.button_3_down_coord:Tuple[int, int] = (None, None)
+        self.button_3_up_coord:Tuple[int, int] = (None, None)
+
+
+class Events3():
+    def __init__(self, parent) -> None:
+        # -- init class --
+        self.app = parent
+
+        # -- click coordinate memory --
+        self.button_1_down_coord:Tuple[int, int] = (None, None)
+        self.button_1_up_coord:Tuple[int, int] = (None, None)
+
+        self.button_3_down_coord:Tuple[int, int] = (None, None)
+        self.button_3_up_coord:Tuple[int, int] = (None, None)
+
+
+# -------------------------------------------------------------------
+# Views (view)
+# -------------------------------------------------------------------
 
 class View1():
     def __init__(self, parent) -> None:
         self.app = parent
-        self.bars:List[Optional[Union[int,float]]] = []
+
+        # -- create frame --
+        self.frame = tk.Frame(self.app)
+        self.frame.pack(sid="top", fill='x')
 
         # -- init plot --
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
@@ -530,25 +724,25 @@ class View1():
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_1)
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
 
     def get_plot(self) -> None:
-        self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.reset_bars()
+        self.axes.plot(self.app.data_1.x_sm, self.app.data_1.y_sm)
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.axes.grid(axis="x")
-        for x in self.bars:
+        for x in self.app.data_1.bars:
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
-        
+    
     def insert_bar(self, x:Union[int,float]) -> None:
-        self.bars += [x]
-
+        self.app.data_1.bars += [x]
         self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
     
     def remove_bar(self, x:Union[int,float]) -> None:
-        self.bars.remove(x)
+        self.app.data_1.bars.remove(x)
         for c in self.axes.lines:
             if c.get_gid() == str(x):
                 c.remove()
@@ -556,23 +750,23 @@ class View1():
     
     def move_bar(self, x_from:Union[int,float], x_to:Union[int,float]) -> None:
         # -- update data (bars & time series) --
-        self.bars.remove(x_from)
+        self.app.data_1.bars.remove(x_from)
         closest_bars = self.get_closest_bars(x=x_to)
         print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
-        self.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_lower_bound=closest_bars[0], x_upper_bound=closest_bars[1])
-        self.bars += [x_to] # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.axes.axvline' !!
+        self.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+        self.app.data_1.bars += [x_to] # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.axes.axvline' !!
 
         # -- update plot --
         self.axes.cla()
-        self.axes.plot(self.app.data_1_reduced.x_raw, self.app.data_1_reduced.y_raw)
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.plot(self.app.data_1.x_sm, self.app.data_1.y_sm)
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.axes.grid(axis="x")
-        for x in self.bars:
+        for x in self.app.data_1.bars:
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
 
     def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.canvas.draw()
 
     def clear_plot(self):
@@ -581,18 +775,9 @@ class View1():
 
     # -- MISC -------------------------------------------------------
 
-    def convert_x_pos(self, x) -> Union[int,float]:
-        """
-            Converts the x position from widget position to axis position.
+    def reset_bars(self) -> None:
+        self.app.data_1.bars = []
 
-            Args:
-                x (int): x position on the widget
-            
-            Returns:
-                (int, float): x position on the plot
-        """
-        return ( x / self.app.winfo_width() ) * ( self.app.x_max_glob - self.app.x_min_glob) + self.app.x_min_glob
-    
     def bar_exists(self, x:Union[int,float], window_perc:Optional[float] = 0.013) -> bool:
         """
             Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
@@ -606,17 +791,17 @@ class View1():
                 (bool): Returns True if a bar exists within proximity, otherwise returns False.
         """
         if window_perc is None or window_perc == 0 or window_perc == 0.0:
-            if x in self.bars:
+            if x in self.app.data_1.bars:
                 return True
             else:
                 return False
         
         else:
-            deviation = ((0.5 * window_perc) * (self.app.x_max_glob - self.app.x_min_glob))
+            deviation = ((0.5 * window_perc) * (self.app.x_max - self.app.x_min))
             lower_bound = x - deviation
             upper_bound = x + deviation
             
-            results = [x for x in self.bars if lower_bound < x < upper_bound]
+            results = [x for x in self.app.data_1.bars if lower_bound < x < upper_bound]
             
             if len(results) == 0:
                 return False
@@ -635,11 +820,11 @@ class View1():
             Returns:
                 (None,int,float): Returns the x position of a bar within the specified range in case it was found, otherwise returns None.
         """
-        deviation = ((0.5 * window_perc) * (self.app.x_max_glob - self.app.x_min_glob))
+        deviation = ((0.5 * window_perc) * (self.app.x_max - self.app.x_min))
         lower_bound = x - deviation
         upper_bound = x + deviation
         
-        results = [x for x in self.bars if lower_bound < x < upper_bound]
+        results = [x for x in self.app.data_1.bars if lower_bound < x < upper_bound]
         
         if len(results) == 0:
             return None
@@ -656,8 +841,8 @@ class View1():
             Returns:
                 (Tuple[Union[int,float], Union[int,float]]): returns the closest bars on both sides relative to a specified x position.
         """
-        candidates_lower_all = self.bars + [self.app.x_lower_bound_glob]
-        candidates_upper_all = self.bars + [self.app.x_upper_bound_glob]
+        candidates_lower_all = self.app.data_1.bars + [self.app.x_min_glob]
+        candidates_upper_all = self.app.data_1.bars + [self.app.x_max_glob]
 
         candidates_lower = [k for k in candidates_lower_all if k < x]
         candidates_upper = [k for k in candidates_upper_all if k > x]
@@ -679,7 +864,7 @@ class View1():
             Returns:
                 (bool): returns True if the new position fulfills the check, otherwise False if it fails the check.
         """
-        for x in self.bars:
+        for x in self.app.data_1.bars:
             if x <= x_from and x < x_to:
                 continue
             elif x >= x_from and x > x_to:
@@ -688,19 +873,19 @@ class View1():
                 return False
         return True
 
-    def apply_dtw_from_bars(self, x_from:Union[int,float], x_to:Union[int,float], x_lower_bound:Union[int,float], x_upper_bound:Union[int,float]) -> None:
+    def apply_dtw_from_bars(self, x_from:Union[int,float], x_to:Union[int,float], x_min_glob:Union[int,float], x_max_glob:Union[int,float]) -> None:
         """
             Args:
                 x_from (int,float): previous position of the bar
                 x_to (int,float): new position of the bar
-                x_lower_bound (int,float): this is the position of the closest bar to the left, relative to x_from and x_to
-                x_upper_bound (int,float): this is the position of the closest bar to the right, relative to x_from and x_to
+                x_min_glob (int,float): this is the position of the closest bar to the left, relative to x_from and x_to
+                x_max_glob (int,float): this is the position of the closest bar to the right, relative to x_from and x_to
         """
         # -- define mappings --
         # x:       time (sec)
         # f(x), y: time (sec) remapped
-        x = [self.app.x_lower_bound_glob] + self.bars + [self.app.x_upper_bound_glob] + [x_from]
-        y = [self.app.x_lower_bound_glob] + self.bars + [self.app.x_upper_bound_glob] + [x_to]
+        x = [self.app.x_min_glob] + self.app.data_1.bars + [self.app.x_max_glob] + [x_from]
+        y = [self.app.x_min_glob] + self.app.data_1.bars + [self.app.x_max_glob] + [x_to]
         x = np.array(x)
         y = np.array(y)
 
@@ -708,38 +893,44 @@ class View1():
         f = interp1d(x, y, fill_value='extrapolate')
 
         # -- update data -- (only update data within the relevant range!)
-        data = self.app.data_1_reduced.x_raw
+        data = self.app.data_1.x_sm
 
-        idx_start = np.searchsorted(data, x_lower_bound)
-        idx_end = np.searchsorted(data, x_upper_bound)
+        idx_start = np.searchsorted(data, x_min_glob)
+        idx_end = np.searchsorted(data, x_max_glob)
 
-        self.app.data_1_reduced.x_raw[idx_start:idx_end] = [f(x) for x in data[idx_start:idx_end]]
+        self.app.data_1.x_sm[idx_start:idx_end] = [f(x) for x in data[idx_start:idx_end]]
 
 
 class View2():
     def __init__(self, parent) -> None:
         self.app = parent
 
+        # -- create frame --
+        self.frame = tk.Frame(self.app)
+        self.frame.pack(sid="top", fill='x')
+
+        # -- init plot --
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
         self.axes = self.figure.add_subplot()
 
+        # -- adjust axes style --
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
         self.axes.grid(axis="x")
-
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_2)
+        # -- init canvas --
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
 
     def get_plot(self):
-        self.axes.plot(self.app.data_2_reduced.x_raw, self.app.data_2_reduced.y_raw)
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.plot(self.app.data_2.x_sm, self.app.data_2.y_sm)
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.axes.grid(axis="x")
         self.canvas.draw()
     
     def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.canvas.draw()
 
     def clear_plot(self):
@@ -751,14 +942,20 @@ class View3():
     def __init__(self, parent) -> None:
         self.app = parent
 
+        # -- create frame --
+        self.frame = tk.Frame(self.app)
+        self.frame.pack(sid="top", fill='x')
+
+        # -- init plot --
         self.figure = plt.Figure(figsize=(6,2), dpi=100)
         self.axes = self.figure.add_subplot()
 
+        # -- adjust axes style --
         self.axes.grid(axis="x")
-
         self.figure.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
 
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.app.frame_pos_3)
+        # -- init canvas --
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
         
     def get_plot(self):
@@ -787,13 +984,13 @@ class View3():
         ln_coll = matplotlib.collections.LineCollection(segs, colors=colors)
 
         self.axes.add_collection(ln_coll)
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.axes.set_ylim(min(notes)-1, max(notes)+1)
         self.axes.grid(axis="x")
         self.canvas.draw()
 
     def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min_glob, self.app.x_max_glob])
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.canvas.draw()
 
     def clear_plot(self):
@@ -801,79 +998,9 @@ class View3():
         self.canvas.draw()
 
 
-class App(tk.Tk):
-    def __init__(self) -> None:
-        # -- init class --
-        tk.Tk.__init__(self)
-
-        # -- window style --
-        self.geometry('1200x600')
-        self.title("Dynamic Time Warp Tool")
-        self.downsampling_factor:int = 50 # only plot every 50th data point from .wav for performance reasons
-
-        # -- create master frames
-        self.frame_pos_1 = tk.Frame(self)
-        self.frame_pos_1.pack(sid="top", fill='x')
-
-        self.frame_pos_2 = tk.Frame(self)
-        self.frame_pos_2.pack(sid="top", fill='x')
-        
-        self.frame_pos_3 = tk.Frame(self)
-        self.frame_pos_3.pack(sid="top", fill='x')
-
-        # -- init views --
-        self.frame_1 = View1(parent=self)
-        self.frame_2 = View2(parent=self)
-        self.frame_3 = View3(parent=self)
-
-        # -- init container that holds data for each view --
-        self.data_1 = self.data_container()
-        self.data_2 = self.data_container()
-        self.data_3 = self.data_container()
-
-        self.data_1_reduced = self.data_container()
-        self.data_2_reduced = self.data_container()
-
-        # -- init global x axis (in seconds) --
-        self.x_min_glob:Union[int,float] = 0 # lower bound within the currently visible frame
-        self.x_max_glob:Union[int,float] = 1 # upper bound within the currently visible frame
-
-        self.x_lower_bound_glob:Union[int,float] = 0 # lower bound of the entire series
-        self.x_upper_bound_glob:Union[int,float] = 1 # upper bound of the entire series
-
-        # -- init menubar --
-        menubar = MenuBar(self)
-        self.config(menu=menubar)
-
-        # -- add editing events --
-        mouse_events_view_1 = MouseEvents_1(self)
-    
-    class data_container():
-        def __init__(self) -> None:
-            pass
-
-    def reset_bounds(self) -> None:
-        try:
-            x1 = self.data_1.x_raw[-1:][0]
-        except Exception:
-            x1 = 0
-        
-        try:
-            x2 = self.data_2.x_raw[-1:][0]
-        except Exception:
-            x2 = 0
-        
-        try:
-            x3 = self.data_3.df_midi["time abs (sec)"][-1:].item()
-        except Exception:
-            x3 = 0
-
-        self.x_min_glob = 0
-        self.x_max_glob = max(1, x1, x2, x3)
-
-        self.x_lower_bound_glob = 0
-        self.x_upper_bound_glob = max(1, x1, x2, x3)
-
+# -------------------------------------------------------------------
+# MAIN
+# -------------------------------------------------------------------
 
 if __name__ == "__main__":
     # -- init app --
