@@ -43,7 +43,7 @@ class App(tk.Tk):
         # -------------------------------------------------
 
         # -- init constants --
-        self.downsampling_factor:int = 50 # only plot every 50th data point from .wav for performance reasons
+        self.downsampling_factor:int = 1 # only plot every N-th data point from .wav for performance reasons
 
         # -- init data containers --
         self.data_1 = Data1(self)
@@ -137,7 +137,7 @@ class App(tk.Tk):
 # -------------------------------------------------------------------
 
 class MenuBar(tk.Menu):
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init class --
         tk.Menu.__init__(self, parent)
         self.app = parent
@@ -219,12 +219,14 @@ class MenuBar(tk.Menu):
     # -- FILE -------------------------------------------------------
 
     def new(self) -> None:
-        self.app.x_min = 0
-        self.app.x_max = 1
-        self.app.x_min_glob = 0
-        self.app.x_max_glob = 1
-        self.app.view_1.clear_plot()
-        self.app.view_2.clear_plot()
+        # -- load sample data --
+        self.app.project_data.load_demo()
+
+        # -- plot sample data --
+        self.app.reset_bounds()
+        self.app.view_1.get_plot()
+        self.app.view_2.get_plot()
+        self.app.view_3.get_plot()
 
     def restart(self) -> None:
         self.app.destroy()
@@ -308,7 +310,7 @@ class MenuBar(tk.Menu):
 
     def apply_dtw_algo(self) -> None:
         # -- compute DTW time mappings --
-        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y_raw, y_raw=self.app.views.view_2.data.y, fs=self.app.data_1.fs, df_midi=None)
+        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y, y_raw=self.app.data_2.y, fs=self.app.data_1.fs, df_midi=None)
         print("Computing chroma features...")
         self.app.dtw_obj.compute_chroma_features()
         print("Computing DTW...")
@@ -324,10 +326,7 @@ class MenuBar(tk.Menu):
 
         # -- draw graphs --
         print("Redrawing graphs")
-        self.app.view_2.clear_plot()
         self.app.view_2.get_plot()
-
-        self.app.view_3.clear_plot()
         self.app.view_3.get_plot()
 
         # -- trigger axis adjustment --
@@ -510,7 +509,7 @@ class MenuBar(tk.Menu):
 
 class ProjectData():
     """Packages the data of Data1, Data2 and Data3 into a .data file and vice versa."""
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
     
@@ -522,8 +521,11 @@ class ProjectData():
         # -- load data --
         self.load_file(filename=filename)
     
-    def load_file(self, filename) -> None:
+    def load_file(self, filename:str) -> None:
         # -- load data --
+        if filename.endswith((".data", ".DATA")) is False:
+            filename += ".data"
+        
         with open(filename, 'rb') as filehandle:
             data = pickle.load(filehandle)
         
@@ -547,6 +549,7 @@ class ProjectData():
         self.app.data_2.x_sm     = data_2["x_sm"]
         self.app.data_2.y_sm     = data_2["y_sm"]
         self.app.data_2.fs       = data_2["fs"]
+        self.app.data_2.bars     = data_2["bars"]
 
         # -- data_3 --
         self.app.data_3.filename = data_3["filename"]
@@ -554,7 +557,7 @@ class ProjectData():
         self.app.data_3.df_midi  = data_3["df_midi"]
         self.app.data_3.bars     = data_3["bars"]
 
-    def save_file(self, filename) -> None:
+    def save_file(self, filename:str) -> None:
         data_1 = {
             "filename": self.app.data_1.filename,
             "x": self.app.data_1.x,
@@ -584,13 +587,16 @@ class ProjectData():
             "data_2": data_2,
             "data_3": data_3,
         }
+
+        if filename.endswith((".data", ".DATA")) is False:
+            filename += ".data"
         
         with open(filename, 'wb') as filehandle:
             pickle.dump(data, filehandle)
 
 
 class Data1():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
 
@@ -626,7 +632,7 @@ class Data1():
 
 
 class Data2():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
 
@@ -802,7 +808,7 @@ class Data2():
 
 
 class Data3():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
 
@@ -967,7 +973,7 @@ class Data3():
 # -------------------------------------------------------------------
 
 class View1():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         self.app = parent
 
         # -- create frame --
@@ -1012,7 +1018,7 @@ class View1():
 
 
 class View2():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         self.app = parent
 
         # -- create frame --
@@ -1069,7 +1075,7 @@ class View2():
 
 
 class View3():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         self.app = parent
 
         # -- create frame --
@@ -1158,7 +1164,7 @@ class View3():
 # -------------------------------------------------------------------
 
 class Events1():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init class --
         self.app = parent
 
@@ -1178,7 +1184,7 @@ class Events1():
 
 
 class Events2():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init class --
         self.app = parent
 
@@ -1315,7 +1321,7 @@ class Events2():
 
 
 class Events3():
-    def __init__(self, parent) -> None:
+    def __init__(self, parent:App) -> None:
         # -- init class --
         self.app = parent
 
