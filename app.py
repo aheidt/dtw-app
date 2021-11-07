@@ -46,10 +46,15 @@ class App(tk.Tk):
         self.downsampling_factor:int = 50 # only plot every 50th data point from .wav for performance reasons
 
         # -- init data containers --
-        self.data_sample = DataSample(self)
         self.data_1 = Data1(self)
         self.data_2 = Data2(self)
         self.data_3 = Data3(self)
+
+        # -- init project container --
+        self.project_data = ProjectData(self)
+
+        # -- load sample data --
+        self.project_data.load_demo()
 
         # -------------------------------------------------
         # VIEWS (view)
@@ -70,6 +75,12 @@ class App(tk.Tk):
         self.view_1 = View1(self)
         self.view_2 = View2(self)
         self.view_3 = View3(self)
+
+        # -- plot sample data --
+        self.reset_bounds()
+        self.view_1.get_plot()
+        self.view_2.get_plot()
+        self.view_3.get_plot()
 
         # -------------------------------------------------
         # EVENTS (controller)
@@ -223,10 +234,22 @@ class MenuBar(tk.Menu):
     # ---------------------------------------------------------------
 
     def load_project(self) -> None:
-        pass
+        # -- load data --
+        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+        self.app.project_data.load_file(filename=filename)
+
+        # -- reset graph limits --
+        self.app.reset_bounds()
+        
+        # -- update graphs --
+        self.app.view_1.get_plot()
+        self.app.view_2.get_plot()
+        self.app.view_3.get_plot()
 
     def save_project(self) -> None:
-        pass
+        # -- save data --
+        filename = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+        self.app.project_data.save_file(filename=filename)
 
     # ---------------------------------------------------------------
 
@@ -485,22 +508,85 @@ class MenuBar(tk.Menu):
 # Data (model)
 # -------------------------------------------------------------------
 
-class DataSample():
+class ProjectData():
+    """Packages the data of Data1, Data2 and Data3 into a .data file and vice versa."""
     def __init__(self, parent) -> None:
         # -- init parent --
         self.app = parent
-
+    
+    def load_demo(self) -> None:
         # -- data source --
         data_dir = os.path.dirname(__file__)
-        loc = os.path.join(data_dir, 'data_sample', 'data_sample.data')
+        filename = os.path.join(data_dir, "demo.data")
 
-        # -- init dataset --
-        with open(loc, 'rb') as filehandle:
+        # -- load data --
+        self.load_file(filename=filename)
+    
+    def load_file(self, filename) -> None:
+        # -- load data --
+        with open(filename, 'rb') as filehandle:
             data = pickle.load(filehandle)
-        self.x  = data[0]
-        self.y  = data[1]
-        self.fs = data[2]
-        self.df_midi = data[3]
+        
+        # -- unpack data --
+        data_1 = data["data_1"]
+        data_2 = data["data_2"]
+        data_3 = data["data_3"]
+
+        # -- data_1 --
+        self.app.data_1.filename = data_1["filename"]
+        self.app.data_1.x        = data_1["x"]
+        self.app.data_1.y        = data_1["y"]
+        self.app.data_1.x_sm     = data_1["x_sm"]
+        self.app.data_1.y_sm     = data_1["y_sm"]
+        self.app.data_1.fs       = data_1["fs"]
+
+        # -- data_2 --
+        self.app.data_2.filename = data_2["filename"]
+        self.app.data_2.x        = data_2["x"]
+        self.app.data_2.y        = data_2["y"]
+        self.app.data_2.x_sm     = data_2["x_sm"]
+        self.app.data_2.y_sm     = data_2["y_sm"]
+        self.app.data_2.fs       = data_2["fs"]
+
+        # -- data_3 --
+        self.app.data_3.filename = data_3["filename"]
+        self.app.data_3.outfile  = data_3["outfile"]
+        self.app.data_3.df_midi  = data_3["df_midi"]
+        self.app.data_3.bars     = data_3["bars"]
+
+    def save_file(self, filename) -> None:
+        data_1 = {
+            "filename": self.app.data_1.filename,
+            "x": self.app.data_1.x,
+            "y": self.app.data_1.y,
+            "x_sm": self.app.data_1.x_sm,
+            "y_sm": self.app.data_1.y_sm,
+            "fs": self.app.data_1.fs,
+        }
+        data_2 = {
+            "filename": self.app.data_2.filename,
+            "x": self.app.data_2.x,
+            "y": self.app.data_2.y,
+            "x_sm": self.app.data_2.x_sm,
+            "y_sm": self.app.data_2.y_sm,
+            "fs": self.app.data_2.fs,
+            "bars": self.app.data_2.bars,
+        }
+        data_3 = {
+            "filename": self.app.data_3.filename,
+            "outfile": self.app.data_3.outfile,
+            "df_midi": self.app.data_3.df_midi,
+            "bars": self.app.data_3.bars,
+        }
+
+        data = {
+            "data_1": data_1,
+            "data_2": data_2,
+            "data_3": data_3,
+        }
+        
+        with open(filename, 'wb') as filehandle:
+            pickle.dump(data, filehandle)
 
 
 class Data1():
