@@ -119,13 +119,13 @@ class DTW:
         # -- plot self.x_raw --
         plt.subplot(2, 1, 1)
         librosa.display.waveplot(self.x_raw, sr=self.fs)
-        plt.title('Audio Baseline $x_raw$')
+        plt.title('Audio Baseline $x\_raw$')
         ax1 = plt.gca()
 
         # -- plot self.y_raw --
         plt.subplot(2, 1, 2)
         librosa.display.waveplot(self.y_raw, sr=self.fs)
-        plt.title('Audio Warped $y_raw$')
+        plt.title('Audio Warped $y\_raw$')
         ax2 = plt.gca()
 
         plt.tight_layout()
