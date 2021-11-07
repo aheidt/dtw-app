@@ -1,22 +1,28 @@
+# -------------------------------------------------------------------
+# Imports
+# -------------------------------------------------------------------
+
+# -- midi handling --
 import mido
 from mido import MidiFile
 
+# -- utils --
 import pandas as pd
 import numpy as np
+import os
+from typing import Optional
 
+# -- plotting --
 import matplotlib
 import matplotlib.pyplot as plt
 
+# -- dtw --
 import librosa
 import librosa.display
 import libfmp
 import libfmp.c3
 import libfmp.c7
-
 from scipy.interpolate import interp1d
-
-import os
-from typing import Optional
 
 
 # -----------------------------------------------------------------------------
@@ -300,13 +306,13 @@ if __name__ == "__main__":
 
     # Step 0: file location
     try:
-        data_dir = os.path(__file__)
+        data_dir = os.path.dirname(__file__)
     except NameError:
         data_dir = os.path.join(r'C:\Users\User\Documents\GitHub\DTW')
     finally:
         file_midi          = os.path.join(data_dir, 'midi_files', 'Cataldi_Impromptu.mid')
         file_wav_original  = os.path.join(data_dir, 'wav_files', 'Cataldi_Impromptu_in_A_Minor_REAL3.wav')
-        file_wav_from_midi = os.path.join(data_dir, 'wav_files', 'Cataldi_ImpromptuMIDI.wav')                 # to fix: push notes to the front of the midi first, so the midi file & midi audio match.
+        file_wav_from_midi = os.path.join(data_dir, 'wav_files', 'Cataldi_ImpromptuMIDI.wav')
 
     # Step 1: load data
     print(f"Loading {file_wav_original} ...")
