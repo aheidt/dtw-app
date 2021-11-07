@@ -297,9 +297,11 @@ class MenuBar(tk.Menu):
     # ---------------------------------------------------------------
 
     def on_save_midi(self) -> None:
-        self.app.data_3.filename_out = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
-        MidiIO.export_midi(df_midi=self.app.data_3.df_midi, outfile=self.app.data_3.filename_out, time_colname="time abs (sec)")
-        print(f"Saved midi file to: {self.app.data_3.filename_out}")
+        self.app.data_3.outfile = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
+        if self.app.data_3.outfile.endswith((".mid", ".MID")) is False:
+            self.app.data_3.outfile += ".mid"
+        MidiIO.export_midi(df_midi=self.app.data_3.df_midi, outfile=self.app.data_3.outfile, time_colname="time abs (sec)")
+        print(f"Saved midi file to: {self.app.data_3.outfile}")
 
     # ---------------------------------------------------------------
 
@@ -813,8 +815,8 @@ class Data3():
         self.app = parent
 
         # -- data source --
-        self.filename = ""
-        self.outfile = None
+        self.filename:str = ""
+        self.outfile:str = ""
 
         # -- init dataset --
         self.df_midi:pd.DataFrame = pd.DataFrame()
@@ -1225,11 +1227,15 @@ class Events2():
             x_pos = self.app.convert_x_pos(self.button_1_up_coord[0])
             bar_exists:bool = self.app.data_2.bar_exists(x=x_pos)
             if bar_exists is True:
-                print(f"view_2: A bar already exists at: {event.x} {event.y} | {x_pos}")
+                print(f"A bar already exists at: {event.x} {event.y} | {x_pos}")
             else:
                 self.app.data_2.insert_bar(x_pos)
                 self.app.view_2.insert_bar(x_pos)
-                print(f"view_2: A new bar was inserted at: {event.x} {event.y} | {x_pos}")
+
+                self.app.data_3.insert_bar(x_pos)
+                self.app.view_3.insert_bar(x_pos)
+
+                print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
         # -- move bar -----------------------------------------------
         else:
@@ -1242,32 +1248,40 @@ class Events2():
 
             if x_closest_bar is not None:
                 if self.app.data_2.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
-                    # -- update data (bars & time series) --
+                    # -- update data (bars & time series) [data_2] --
                     self.app.data_2.delete_bar(x_closest_bar)
                     closest_bars = self.app.data_2.get_closest_bars(x=x_to)
                     print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
                     self.app.data_2.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
                     self.app.data_2.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
 
+                    # -- update data (bars & time series) [data_3] --
+                    self.app.data_3.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_3.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_3.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
                     # -- update graph --
                     self.app.view_2.get_plot()
+                    self.app.view_3.get_plot()
 
                     # -- log message --
-                    print("view_2: A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                    print("A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                         x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                         x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
                         x_from=x_from, x_to=x_to
                         )
                     )
                 else:
-                    print("view_2: A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
+                    print("A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
                         x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                         x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
                         x_from=x_from, x_to=x_to
                         )
                     )
             else:
-                print("view_2: No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                print("No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                     x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                     x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
                     x_from=x_from, x_to=x_to
@@ -1297,11 +1311,15 @@ class Events2():
             x = self.app.convert_x_pos(event.x)
             x_bar_pos = self.app.data_2.get_closest_bar(x=x)
             if x_bar_pos is None:
-                print(f"view_2: No bar to delete from: {event.x} {event.y} | {x}")
+                print(f"No bar to delete from: {event.x} {event.y} | {x}")
             else:
                 self.app.data_2.delete_bar(x_bar_pos)
                 self.app.view_2.delete_bar(x_bar_pos)
-                print(f"view_2: A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
+
+                self.app.data_3.delete_bar(x_bar_pos)
+                self.app.view_3.delete_bar(x_bar_pos)
+
+                print(f"A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
             pass
 
@@ -1362,11 +1380,15 @@ class Events3():
             x_pos = self.app.convert_x_pos(self.button_1_up_coord[0])
             bar_exists:bool = self.app.data_3.bar_exists(x=x_pos)
             if bar_exists is True:
-                print(f"view_3: A bar already exists at: {event.x} {event.y} | {x_pos}")
+                print(f"A bar already exists at: {event.x} {event.y} | {x_pos}")
             else:
                 self.app.data_3.insert_bar(x_pos)
                 self.app.view_3.insert_bar(x_pos)
-                print(f"view_3: A new bar was inserted at: {event.x} {event.y} | {x_pos}")
+
+                self.app.data_2.insert_bar(x_pos)
+                self.app.view_2.insert_bar(x_pos)
+
+                print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
         # -- move bar -----------------------------------------------
         else:
@@ -1379,32 +1401,40 @@ class Events3():
 
             if x_closest_bar is not None:
                 if self.app.data_3.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
-                    # -- update data (bars & time series) --
+                    # -- update data (bars & time series) [data_3] --
                     self.app.data_3.delete_bar(x_closest_bar)
                     closest_bars = self.app.data_3.get_closest_bars(x=x_to)
                     print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
                     self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
                     self.app.data_3.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
 
+                    # -- update data (bars & time series) [data_2] --
+                    self.app.data_2.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_2.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_2.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_2.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
                     # -- update graph --
                     self.app.view_3.get_plot()
+                    self.app.view_2.get_plot()
 
                     # -- log message --
-                    print("view_3: A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                    print("A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                         x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                         x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
                         x_from=x_from, x_to=x_to
                         )
                     )
                 else:
-                    print("view_3: A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
+                    print("A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
                         x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                         x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
                         x_from=x_from, x_to=x_to
                         )
                     )
             else:
-                print("view_3: No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                print("No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                     x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
                     x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
                     x_from=x_from, x_to=x_to
@@ -1429,11 +1459,15 @@ class Events3():
             x = self.app.convert_x_pos(event.x)
             x_bar_pos = self.app.data_3.get_closest_bar(x=x)
             if x_bar_pos is None:
-                print(f"view_3: No bar to delete from: {event.x} {event.y} | {x}")
+                print(f"No bar to delete from: {event.x} {event.y} | {x}")
             else:
                 self.app.data_3.delete_bar(x_bar_pos)
                 self.app.view_3.delete_bar(x_bar_pos)
-                print(f"view_3: A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
+
+                self.app.data_2.delete_bar(x_bar_pos)
+                self.app.view_2.delete_bar(x_bar_pos)
+
+                print(f"A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
             pass
     
