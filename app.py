@@ -43,7 +43,8 @@ class App(tk.Tk):
         # -------------------------------------------------
 
         # -- init constants --
-        self.downsampling_factor:int = 1 # only plot every N-th data point from .wav for performance reasons
+        self.downsampling_factor_1:int = 5 # only plot every N-th data point from .wav for performance reasons
+        self.downsampling_factor_2:int = 40 # only plot every N-th data point from .wav for performance reasons
 
         # -- init data containers --
         self.data_1 = Data1(self)
@@ -585,6 +586,7 @@ class ProjectData():
         }
 
         data = {
+            "version": "1.0.0",
             "data_1": data_1,
             "data_2": data_2,
             "data_3": data_3,
@@ -626,8 +628,8 @@ class Data1():
             self.x = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
             # -- create reduced sample for plotting --
-            self.y_sm = self.y[::self.app.downsampling_factor]
-            self.x_sm = self.x[::self.app.downsampling_factor]
+            self.y_sm = self.y[::self.app.downsampling_factor_1]
+            self.x_sm = self.x[::self.app.downsampling_factor_1]
 
         except Exception as e:
             messagebox.showerror("Error Message", f"Could not load file: {self.filename}, because: {repr(e)}")
@@ -665,8 +667,8 @@ class Data2():
             self.x = [(i/x_num_steps)*time_length for i in range(x_num_steps)]
 
             # -- create reduced sample for plotting --
-            self.y_sm = self.y[::self.app.downsampling_factor]
-            self.x_sm = self.x[::self.app.downsampling_factor]
+            self.y_sm = self.y[::self.app.downsampling_factor_2]
+            self.x_sm = self.x[::self.app.downsampling_factor_2]
 
         except Exception as e:
             messagebox.showerror("Error Message", f"Could not load file: {self.filename}, because: {repr(e)}")
