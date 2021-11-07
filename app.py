@@ -956,14 +956,10 @@ class Data3():
         f = interp1d(x, y, fill_value='extrapolate')
 
         # -- update data -- (only update data within the relevant range!)
-        data = self.x_sm
+        idx_start = np.searchsorted(self.df_midi["time abs (sec)"], x_min_glob)
+        idx_end = np.searchsorted(self.df_midi["time abs (sec)"], x_max_glob)
 
-        idx_start = np.searchsorted(data, x_min_glob)
-        idx_end = np.searchsorted(data, x_max_glob)
-
-        self.x_sm[idx_start:idx_end] = [f(x) for x in data[idx_start:idx_end]]
-
-        # self.df_midi["time abs (sec) remapped"] = [self.f(x) for x in self.df_midi["time abs (sec)"]]
+        self.df_midi.loc[idx_start:idx_end,"time abs (sec)"] = [f(x) for x in self.df_midi.loc[idx_start:idx_end,"time abs (sec)"]]
 
 
 # -------------------------------------------------------------------
@@ -1130,8 +1126,20 @@ class View3():
         self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.axes.set_ylim(min(notes)-1, max(notes)+1)
         self.axes.grid(axis="x")
+        for x in self.app.data_3.bars:
+            self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
 
+    def insert_bar(self, x:Union[int,float]) -> None:
+        self.axes.axvline(x=x, color='red', gid=str(x))
+        self.canvas.draw()
+    
+    def delete_bar(self, x:Union[int,float]) -> None:
+        for c in self.axes.lines:
+            if c.get_gid() == str(x):
+                c.remove()
+        self.canvas.draw()
+    
     def reload_axis(self):
         self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.canvas.draw()
@@ -1338,7 +1346,69 @@ class Events3():
     
     def record_button_1_up(self, event) -> None:
         self.button_1_up_coord:Tuple[int, int] = (event.x, event.y)
-    
+
+        # -- incomplete action --------------------------------------
+        if self.button_1_down_coord == (None, None) or self.button_1_up_coord == (None, None):
+            pass
+        
+        # -- create bar ---------------------------------------------
+        elif self.button_1_down_coord == self.button_1_up_coord:
+            x_pos = self.app.convert_x_pos(self.button_1_up_coord[0])
+            bar_exists:bool = self.app.data_3.bar_exists(x=x_pos)
+            if bar_exists is True:
+                print(f"view_3: A bar already exists at: {event.x} {event.y} | {x_pos}")
+            else:
+                self.app.data_3.insert_bar(x_pos)
+                self.app.view_3.insert_bar(x_pos)
+                print(f"view_3: A new bar was inserted at: {event.x} {event.y} | {x_pos}")
+
+        # -- move bar -----------------------------------------------
+        else:
+            # -- convert coordinates --
+            x_from = self.app.convert_x_pos(self.button_1_down_coord[0])
+            x_to   = self.app.convert_x_pos(self.button_1_up_coord[0])
+
+            # -- get closest bar (from previous position) --
+            x_closest_bar = self.app.data_3.get_closest_bar(x_from)
+
+            if x_closest_bar is not None:
+                if self.app.data_3.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
+                    # -- update data (bars & time series) --
+                    self.app.data_3.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_3.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_3.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
+                    # -- update graph --
+                    self.app.view_3.get_plot()
+
+                    # -- log message --
+                    print("view_3: A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                        x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                        x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                        x_from=x_from, x_to=x_to
+                        )
+                    )
+                else:
+                    print("view_3: A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
+                        x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                        x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                        x_from=x_from, x_to=x_to
+                        )
+                    )
+            else:
+                print("view_3: No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                    x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                    x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                    x_from=x_from, x_to=x_to
+                    )
+                )
+        
+        # -- reset coord --------------------------------------------
+        self.button_1_down_coord == (None, None)
+        self.button_1_up_coord == (None, None)
+
     # ---------------------------------------------------------------
     # RIGHT MOUSE CLICK
     # ---------------------------------------------------------------
@@ -1355,6 +1425,7 @@ class Events3():
             if x_bar_pos is None:
                 print(f"view_3: No bar to delete from: {event.x} {event.y} | {x}")
             else:
+                self.app.data_3.delete_bar(x_bar_pos)
                 self.app.view_3.delete_bar(x_bar_pos)
                 print(f"view_3: A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
