@@ -50,6 +50,8 @@ class App(tk.Tk):
         self.data_1 = Data1(self)
         self.data_2 = Data2(self)
         self.data_3 = Data3(self)
+        self.data_4 = Data4(self)
+        self.data_5 = Data5(self)
 
         # -- init project container --
         self.project_data = ProjectData(self)
@@ -57,12 +59,15 @@ class App(tk.Tk):
         # -- load sample data --
         self.project_data.load_demo()
 
+        # -- dtw object --
+        # self.dtw_obj = DTW()
+
         # -------------------------------------------------
         # VIEWS (view)
         # -------------------------------------------------
 
         # -- window style --
-        self.geometry('1200x600')
+        self.geometry('1200x640')
         self.title("Dynamic Time Warp Tool")
 
         # -- init constants --
@@ -75,6 +80,8 @@ class App(tk.Tk):
         # -- init views --
         self.view_1 = View1(self)
         self.view_2 = View2(self)
+        self.view_4 = View4(self)
+        self.view_5 = View5(self)
         self.view_3 = View3(self)
 
         # -- plot sample data --
@@ -82,6 +89,8 @@ class App(tk.Tk):
         self.view_1.get_plot()
         self.view_2.get_plot()
         self.view_3.get_plot()
+        self.view_4.get_plot()
+        self.view_5.get_plot()
 
         # -------------------------------------------------
         # EVENTS (controller)
@@ -95,6 +104,8 @@ class App(tk.Tk):
         self.events_1 = Events1(self)
         self.events_2 = Events2(self)
         self.events_3 = Events3(self)
+        self.events_4 = Events4(self)
+        self.events_5 = Events5(self)
 
     # -- MISC ---------------------------------------------
 
@@ -259,8 +270,15 @@ class MenuBar(tk.Menu):
     def on_open_wav_original(self) -> None:
         # -- load dataset --
         filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
+        
+        print("Loading wav file...")
         self.app.data_1.load_file(filename)
         
+        print("Computing chroma features...")
+        self.app.data_4.load_chroma_features()
+        
+        print("Done")
+
         # -- reset graph limits --
         self.app.reset_bounds()
         
@@ -268,11 +286,20 @@ class MenuBar(tk.Menu):
         self.app.view_1.get_plot()
         self.app.view_2.reload_axis()
         self.app.view_3.reload_axis()
+        self.app.view_4.get_plot()
+        self.app.view_5.reload_axis()
 
     def on_open_wav_from_midi(self) -> None:
         # -- load dataset --
         filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
+        
+        print("Loading wav file...")
         self.app.data_2.load_file(filename)
+
+        print("Computing chroma features...")
+        self.app.data_5.load_chroma_features()
+        
+        print("Done")
         
         # -- reset graph limits --
         self.app.reset_bounds()
@@ -281,6 +308,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.get_plot()
         self.app.view_3.reload_axis()
+        self.app.view_4.reload_axis()
+        self.app.view_5.get_plot()
         
     def on_open_midi(self) -> None:
         # -- load dataset --
@@ -294,7 +323,9 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
         self.app.view_3.get_plot()
-    
+        self.app.view_4.reload_axis()
+        self.app.view_5.reload_axis()
+
     # ---------------------------------------------------------------
 
     def on_save_midi(self) -> None:
@@ -314,23 +345,31 @@ class MenuBar(tk.Menu):
     def apply_dtw_algo(self) -> None:
         # -- compute DTW time mappings --
         self.app.dtw_obj = DTW(x_raw=self.app.data_1.y, y_raw=self.app.data_2.y, fs=self.app.data_1.fs, df_midi=None)
+        
         print("Computing chroma features...")
         self.app.dtw_obj.compute_chroma_features()
+        
         print("Computing DTW...")
         self.app.dtw_obj.compute_dtw()
+
         print("Computing remap function...")
         self.app.dtw_obj.compute_remap_function()
 
         # -- apply DTW time mappings --
         print("Remapping midi...")
         self.app.data_3.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_3.df_midi["time abs (sec)"]]
+        
         print("Remapping wav...")
         self.app.data_2.x_sm = [self.app.dtw_obj.f(x) for x in self.app.data_2.x_sm]
+
+        print("Remapping chroma features...")
+        self.app.data_5.x = [self.app.dtw_obj.f(x) for x in self.app.data_5.x]
 
         # -- draw graphs --
         print("Redrawing graphs")
         self.app.view_2.get_plot()
         self.app.view_3.get_plot()
+        self.app.view_5.get_plot()
 
         # -- trigger axis adjustment --
         print("Resetting axis")
@@ -338,6 +377,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
         self.app.view_3.reload_axis()
+        self.app.view_4.reload_axis()
+        self.app.view_5.reload_axis()
 
         print("Done")
 
@@ -363,6 +404,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
         self.app.view_3.reload_axis()
+        self.app.view_4.reload_axis()
+        self.app.view_5.reload_axis()
 
     def zoom_out(self) -> None:
         # -- adjust x axis limits --
@@ -388,6 +431,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
         self.app.view_3.reload_axis()
+        self.app.view_4.reload_axis()
+        self.app.view_5.reload_axis()
 
     def scroll_right(self) -> None:
         # -- adjust x axis limits --
@@ -408,6 +453,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
         self.app.view_3.reload_axis()
+        self.app.view_4.reload_axis()
+        self.app.view_5.reload_axis()
 
     def scroll_left(self) -> None:
         # -- adjust x axis limits --
@@ -428,6 +475,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
         self.app.view_3.reload_axis()
+        self.app.view_4.reload_axis()
+        self.app.view_5.reload_axis()
 
     # -- HELP -------------------------------------------------------
 
@@ -536,6 +585,8 @@ class ProjectData():
         data_1 = data["data_1"]
         data_2 = data["data_2"]
         data_3 = data["data_3"]
+        data_4 = data["data_4"]
+        data_5 = data["data_5"]
 
         # -- data_1 --
         self.app.data_1.filename = data_1["filename"]
@@ -560,7 +611,23 @@ class ProjectData():
         self.app.data_3.df_midi  = data_3["df_midi"]
         self.app.data_3.bars     = data_3["bars"]
 
+        # -- data_4 --
+        self.app.data_4.chroma     = data_4["chroma"]
+        self.app.data_4.x          = data_4["x"]
+        self.app.data_4.y          = data_4["y"]
+        self.app.data_4.fs         = data_4["fs"]
+        self.app.data_4.hop_length = data_4["hop_length"]
+
+        # -- data_5 --
+        self.app.data_5.chroma     = data_5["chroma"]
+        self.app.data_5.x          = data_5["x"]
+        self.app.data_5.y          = data_5["y"]
+        self.app.data_5.fs         = data_5["fs"]
+        self.app.data_5.hop_length = data_5["hop_length"]
+        self.app.data_5.bars       = data_5["bars"]
+
     def save_file(self, filename:str) -> None:
+        # -- datasets --
         data_1 = {
             "filename": self.app.data_1.filename,
             "x": self.app.data_1.x,
@@ -584,19 +651,47 @@ class ProjectData():
             "df_midi": self.app.data_3.df_midi,
             "bars": self.app.data_3.bars,
         }
+        data_4 = {
+            "chroma": self.app.data_4.chroma,
+            "x": self.app.data_4.x,
+            "y": self.app.data_4.y,
+            "fs": self.app.data_4.fs,
+            "hop_length": self.app.data_4.hop_length,
+        }
+        data_5 = {
+            "chroma": self.app.data_5.chroma,
+            "x": self.app.data_5.x,
+            "y": self.app.data_5.y,
+            "fs": self.app.data_5.fs,
+            "hop_length": self.app.data_5.hop_length,
+            "bars": self.app.data_5.bars,
+        }
 
+        # -- miscellaneous data --
+        settings = {
+            "version": "1.1.0",
+        }
+
+        # -- bundle data --
         data = {
-            "version": "1.0.0",
+            "settings": settings,
             "data_1": data_1,
             "data_2": data_2,
             "data_3": data_3,
+            "data_4": data_4,
+            "data_5": data_5,
         }
 
+        # -- adjust filename --
         if filename.endswith((".data", ".DATA")) is False:
             filename += ".data"
-        
+
+        # -- write file --        
         with open(filename, 'wb') as filehandle:
             pickle.dump(data, filehandle)
+
+        # -- log message --
+        print(f"Successfully saved project to {filename}")
 
 
 class Data1():
@@ -972,6 +1067,198 @@ class Data3():
         self.df_midi.loc[idx_start:idx_end,"time abs (sec)"] = [f(x) for x in self.df_midi.loc[idx_start:idx_end,"time abs (sec)"]]
 
 
+class Data4():
+    def __init__(self, parent:App) -> None:
+        # -- init parent --
+        self.app = parent
+
+        # -- init dataset --
+        self.chroma = None
+        self.x = None
+        self.y = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H', '']
+        self.fs = None
+        self.hop_length = 512
+    
+    # -- load chroma features ---------------------------------------
+
+    def load_chroma_features(self):
+        self.fs = self.app.data_1.fs
+        harm = librosa.effects.harmonic(y=self.app.data_1.y, margin=8)
+        chroma_harm = librosa.feature.chroma_cqt(y=harm, sr=self.fs)
+        self.chroma = np.minimum(
+            chroma_harm, librosa.decompose.nn_filter(
+                chroma_harm, aggregate=np.median, metric='cosine'))
+
+        x_num_steps = len(self.chroma[0])
+        self.x = librosa.frames_to_time(np.arange(x_num_steps + 1), sr=self.fs, hop_length=self.hop_length)
+
+
+class Data5():
+    def __init__(self, parent:App) -> None:
+        # -- init parent --
+        self.app = parent
+
+        # -- init dataset --
+        self.chroma = None
+        self.x = None
+        self.y = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H', '']
+        self.fs = None
+        self.hop_length = 512
+
+        # -- edit memory --
+        self.bars:List[Optional[Union[int,float]]] = [] # keep in synch with the bars of Data2 !!
+
+    # -- load chroma features ---------------------------------------
+
+    def load_chroma_features(self):
+        self.fs = self.app.data_2.fs
+        harm = librosa.effects.harmonic(y=self.app.data_2.y, margin=8)
+        chroma_harm = librosa.feature.chroma_cqt(y=harm, sr=self.fs)
+        self.chroma = np.minimum(
+            chroma_harm, librosa.decompose.nn_filter(
+                chroma_harm, aggregate=np.median, metric='cosine'))
+
+        x_num_steps = len(self.chroma[0])
+        self.x = librosa.frames_to_time(np.arange(x_num_steps + 1), sr=self.fs, hop_length=self.hop_length)
+
+    # -- edit bar dataset -------------------------------------------
+
+    def insert_bar(self, x) -> None:
+        self.bars += [x]
+
+    def delete_bar(self, x) -> None:
+        self.bars.remove(x)
+
+    def reset_bars(self) -> None:
+        self.bars = []
+    
+    # -- get bar relations ------------------------------------------
+
+    def bar_exists(self, x:Union[int,float], window_perc:Optional[float] = 0.013) -> bool:
+        """
+            Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
+            Returns the exact position of the bar if found, otherwise returns None.
+
+            Args:
+                x (None,int,float): x position of the bar in the graph
+                window_perc (float): how large is the window in percent (relative to the displayed graph limits), in which the bar should exist?
+            
+            Returns:
+                (bool): Returns True if a bar exists within proximity, otherwise returns False.
+        """
+        if window_perc is None or window_perc == 0 or window_perc == 0.0:
+            if x in self.bars:
+                return True
+            else:
+                return False
+        
+        else:
+            deviation = ((0.5 * window_perc) * (self.app.x_max - self.app.x_min))
+            lower_bound = x - deviation
+            upper_bound = x + deviation
+            
+            results = [x for x in self.bars if lower_bound < x < upper_bound]
+            
+            if len(results) == 0:
+                return False
+            else:
+                return True
+
+    def get_closest_bar(self, x:Union[int,float], window_perc:float = 0.01) -> Optional[Union[int,float]]:
+        """
+            Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
+            Returns the exact position of the bar if found, otherwise returns None.
+
+            Args:
+                x (int,float): x position of the bar in the graph
+                window_perc (float): how large is the window in percent (relative to the displayed graph limits), in which the bar should exist?
+            
+            Returns:
+                (None,int,float): Returns the x position of a bar within the specified range in case it was found, otherwise returns None.
+        """
+        deviation = ((0.5 * window_perc) * (self.app.x_max - self.app.x_min))
+        lower_bound = x - deviation
+        upper_bound = x + deviation
+        
+        results = [x for x in self.bars if lower_bound < x < upper_bound]
+        
+        if len(results) == 0:
+            return None
+        else:
+            return min(results, key=lambda list_item:abs(list_item-x))
+
+    def get_closest_bars(self, x:Union[int,float]) -> Tuple[Union[int,float], Union[int,float]]:
+        """
+            Returns the closest bars on both sides relative to a specified x position.
+
+            Args:
+                x (int,float): x position on the graph
+
+            Returns:
+                (Tuple[Union[int,float], Union[int,float]]): returns the closest bars on both sides relative to a specified x position.
+        """
+        candidates_lower_all = self.bars + [self.app.x_min_glob]
+        candidates_upper_all = self.bars + [self.app.x_max_glob]
+
+        candidates_lower = [k for k in candidates_lower_all if k < x]
+        candidates_upper = [k for k in candidates_upper_all if k > x]
+        
+        result_lower = min(candidates_lower, key=lambda list_item:abs(list_item-x))
+        result_upper = min(candidates_upper, key=lambda list_item:abs(list_item-x))
+        
+        return (result_lower, result_upper)
+
+    def validate_new_bar_pos(self, x_from:Union[int,float], x_to:Union[int,float]) -> bool:
+        """
+            Checks if the new position of the bar is not out bounds, i.e. it can not cross another bar.
+            Only useful when moving a bar to a new position.
+
+            Args:
+                x_from (int,float): previous x position on the plot
+                x_to (int,float): new x position on the plot
+
+            Returns:
+                (bool): returns True if the new position fulfills the check, otherwise False if it fails the check.
+        """
+        for x in self.bars:
+            if x <= x_from and x < x_to:
+                continue
+            elif x >= x_from and x > x_to:
+                continue
+            else:
+                return False
+        return True
+
+    # -- alter time series ------------------------------------------
+
+    def apply_dtw_from_bars(self, x_from:Union[int,float], x_to:Union[int,float], x_min_glob:Union[int,float], x_max_glob:Union[int,float]) -> None:
+        """
+            Args:
+                x_from (int,float): previous position of the bar
+                x_to (int,float): new position of the bar
+                x_min_glob (int,float): this is the position of the closest bar to the left, relative to x_from and x_to
+                x_max_glob (int,float): this is the position of the closest bar to the right, relative to x_from and x_to
+        """
+        # -- define mappings --
+        # x:       time (sec)
+        # f(x), y: time (sec) remapped
+        x = [self.app.x_min_glob] + self.bars + [self.app.x_max_glob] + [x_from]
+        y = [self.app.x_min_glob] + self.bars + [self.app.x_max_glob] + [x_to]
+        x = np.array(x)
+        y = np.array(y)
+
+        # -- interpolation methods --
+        f = interp1d(x, y, fill_value='extrapolate')
+
+        # -- update data -- (only update data within the relevant range!)
+        data = self.x
+
+        idx_start = np.searchsorted(data, x_min_glob)
+        idx_end = np.searchsorted(data, x_max_glob)
+
+        self.x[idx_start:idx_end] = [f(x) for x in data[idx_start:idx_end]]
+
+
 # -------------------------------------------------------------------
 # Views (view)
 # -------------------------------------------------------------------
@@ -985,7 +1272,7 @@ class View1():
         self.frame.pack(sid="top", fill='x')
 
         # -- init plot --
-        self.figure = plt.Figure(figsize=(6,2), dpi=100)
+        self.figure = plt.Figure(figsize=(6,1.5), dpi=100)
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
@@ -996,9 +1283,6 @@ class View1():
         # -- init canvas --
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
-
-        # -- draw sample graph --
-        self.get_plot()
 
     def get_plot(self) -> None:
         """Loads a fresh version of the plot."""
@@ -1030,7 +1314,7 @@ class View2():
         self.frame.pack(sid="top", fill='x')
 
         # -- init plot --
-        self.figure = plt.Figure(figsize=(6,2), dpi=100)
+        self.figure = plt.Figure(figsize=(6,1.5), dpi=100)
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
@@ -1041,9 +1325,6 @@ class View2():
         # -- init canvas --
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
-
-        # -- draw sample graph --
-        self.get_plot()
 
     def get_plot(self):
         """Loads a fresh version of the plot."""
@@ -1087,17 +1368,17 @@ class View3():
         self.frame.pack(sid="top", fill='x')
 
         # -- init plot --
-        self.figure = plt.Figure(figsize=(6,2), dpi=100)
+        self.figure = plt.Figure(figsize=(6,1.4), dpi=100)
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
         self.axes.grid(axis="x")
-        self.figure.subplots_adjust(left=0.0, bottom=None, right=1.0, top=1.0, wspace=None, hspace=None)
+        self.figure.subplots_adjust(left=0.0, bottom=0.16, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(fill='x', side='top')
-        
+
     def get_plot(self):
         # -- clear plot --
         self.axes.cla()
@@ -1139,6 +1420,120 @@ class View3():
         for x in self.app.data_3.bars:
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
+
+    def insert_bar(self, x:Union[int,float]) -> None:
+        self.axes.axvline(x=x, color='red', gid=str(x))
+        self.canvas.draw()
+    
+    def delete_bar(self, x:Union[int,float]) -> None:
+        for c in self.axes.lines:
+            if c.get_gid() == str(x):
+                c.remove()
+        self.canvas.draw()
+    
+    def reload_axis(self):
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
+        self.canvas.draw()
+
+    def clear_plot(self):
+        self.axes.cla()
+        self.canvas.draw()
+
+    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
+        self.axes.set_facecolor(color)
+        self.canvas.draw()
+
+
+class View4():
+    def __init__(self, parent:App) -> None:
+        self.app = parent
+
+        # -- create frame --
+        self.frame = tk.Frame(self.app)
+        self.frame.pack(sid="top", fill='x')
+
+        # -- init plot --
+        self.figure = plt.Figure(figsize=(6,1), dpi=100)
+        self.axes = self.figure.add_subplot()
+
+        # -- adjust axes style --
+        self.axes.set_yticklabels([])
+        self.axes.set_xticklabels([])
+        self.axes.grid(axis="x")
+        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
+
+        # -- init canvas --
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
+        self.canvas.get_tk_widget().pack(fill='x', side='top')
+        
+    def get_plot(self):
+        if self.app.data_4.chroma is not None:
+            # -- clear plot --
+            self.axes.cla()
+
+            # -- create plot --
+            self.axes.pcolormesh(self.app.data_4.x, self.app.data_4.y, self.app.data_4.chroma)
+
+            # -- adjust axis style --
+            self.axes.set_xlim([self.app.x_min, self.app.x_max])
+            self.axes.grid(axis="x")
+
+            # -- draw graph --
+            self.canvas.draw()
+    
+    def reload_axis(self):
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
+        self.canvas.draw()
+
+    def clear_plot(self):
+        self.axes.cla()
+        self.canvas.draw()
+
+    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
+        self.axes.set_facecolor(color)
+        self.canvas.draw()
+
+
+class View5():
+    def __init__(self, parent:App) -> None:
+        self.app = parent
+
+        # -- create frame --
+        self.frame = tk.Frame(self.app)
+        self.frame.pack(sid="top", fill='x')
+
+        # -- init plot --
+        self.figure = plt.Figure(figsize=(6,1), dpi=100)
+        self.axes = self.figure.add_subplot()
+
+        # -- adjust axes style --
+        self.axes.set_yticklabels([])
+        self.axes.set_xticklabels([])
+        self.axes.grid(axis="x")
+        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
+
+        # -- init canvas --
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
+        self.canvas.get_tk_widget().pack(fill='x', side='top')
+        
+    def get_plot(self):
+        if self.app.data_5.chroma is not None:
+            # -- clear plot --
+            self.axes.cla()
+
+            # -- create plot --
+            self.axes.pcolormesh(self.app.data_5.x, self.app.data_5.y, self.app.data_5.chroma)
+
+            # -- adjust axis style --
+            self.axes.set_xlim([self.app.x_min, self.app.x_max])
+            self.axes.grid(axis="x")
+
+            # -- add bars --
+            for x in self.app.data_3.bars:
+                self.axes.axvline(x=x, color='red', gid=str(x))
+
+            # -- draw graph --
+            self.canvas.draw()
 
     def insert_bar(self, x:Union[int,float]) -> None:
         self.axes.axvline(x=x, color='red', gid=str(x))
@@ -1237,6 +1632,9 @@ class Events2():
                 self.app.data_3.insert_bar(x_pos)
                 self.app.view_3.insert_bar(x_pos)
 
+                self.app.data_5.insert_bar(x_pos)
+                self.app.view_5.insert_bar(x_pos)
+
                 print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
         # -- move bar -----------------------------------------------
@@ -1264,9 +1662,17 @@ class Events2():
                     self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
                     self.app.data_3.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
 
+                    # -- update data (bars & time series) [data_5] --
+                    self.app.data_5.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_5.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_5.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_5.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
                     # -- update graph --
                     self.app.view_2.get_plot()
                     self.app.view_3.get_plot()
+                    self.app.view_5.get_plot()
 
                     # -- log message --
                     print("A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
@@ -1320,6 +1726,9 @@ class Events2():
 
                 self.app.data_3.delete_bar(x_bar_pos)
                 self.app.view_3.delete_bar(x_bar_pos)
+
+                self.app.data_5.delete_bar(x_bar_pos)
+                self.app.view_5.delete_bar(x_bar_pos)
 
                 print(f"A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
@@ -1384,11 +1793,14 @@ class Events3():
             if bar_exists is True:
                 print(f"A bar already exists at: {event.x} {event.y} | {x_pos}")
             else:
+                self.app.data_2.insert_bar(x_pos)
+                self.app.view_2.insert_bar(x_pos)
+
                 self.app.data_3.insert_bar(x_pos)
                 self.app.view_3.insert_bar(x_pos)
 
-                self.app.data_2.insert_bar(x_pos)
-                self.app.view_2.insert_bar(x_pos)
+                self.app.data_5.insert_bar(x_pos)
+                self.app.view_5.insert_bar(x_pos)
 
                 print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
@@ -1403,6 +1815,13 @@ class Events3():
 
             if x_closest_bar is not None:
                 if self.app.data_3.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
+                    # -- update data (bars & time series) [data_2] --
+                    self.app.data_2.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_2.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_2.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_2.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+                    
                     # -- update data (bars & time series) [data_3] --
                     self.app.data_3.delete_bar(x_closest_bar)
                     closest_bars = self.app.data_3.get_closest_bars(x=x_to)
@@ -1410,16 +1829,17 @@ class Events3():
                     self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
                     self.app.data_3.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
 
-                    # -- update data (bars & time series) [data_2] --
-                    self.app.data_2.delete_bar(x_closest_bar)
-                    closest_bars = self.app.data_2.get_closest_bars(x=x_to)
+                    # -- update data (bars & time series) [data_5] --
+                    self.app.data_5.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_5.get_closest_bars(x=x_to)
                     print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
-                    self.app.data_2.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
-                    self.app.data_2.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+                    self.app.data_5.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_5.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
 
                     # -- update graph --
-                    self.app.view_3.get_plot()
                     self.app.view_2.get_plot()
+                    self.app.view_3.get_plot()
+                    self.app.view_5.get_plot()
 
                     # -- log message --
                     print("A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
@@ -1463,11 +1883,14 @@ class Events3():
             if x_bar_pos is None:
                 print(f"No bar to delete from: {event.x} {event.y} | {x}")
             else:
+                self.app.data_2.delete_bar(x_bar_pos)
+                self.app.view_2.delete_bar(x_bar_pos)
+
                 self.app.data_3.delete_bar(x_bar_pos)
                 self.app.view_3.delete_bar(x_bar_pos)
 
-                self.app.data_2.delete_bar(x_bar_pos)
-                self.app.view_2.delete_bar(x_bar_pos)
+                self.app.data_5.delete_bar(x_bar_pos)
+                self.app.view_5.delete_bar(x_bar_pos)
 
                 print(f"A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
@@ -1482,6 +1905,193 @@ class Events3():
 
     def hover_canvas_out(self, event) -> None:
         self.app.view_3.set_bg_color(color=(1.0, 1.0, 1.0))
+
+
+class Events4():
+    def __init__(self, parent:App) -> None:
+        # -- init class --
+        self.app = parent
+
+        # -- hover canvas --
+        self.app.view_4.canvas.get_tk_widget().bind("<Enter>", self.hover_canvas_in)  # mouse pointer entered the widget
+        self.app.view_4.canvas.get_tk_widget().bind("<Leave>", self.hover_canvas_out) # mouse pointer left the widget
+
+    # ---------------------------------------------------------------
+    # HOVER FRAME
+    # ---------------------------------------------------------------
+
+    def hover_canvas_in(self, event) -> None:
+        self.app.view_4.set_bg_color(color=self.app.hover_color)
+
+    def hover_canvas_out(self, event) -> None:
+        self.app.view_4.set_bg_color(color=(1.0, 1.0, 1.0))
+
+
+class Events5():
+    def __init__(self, parent:App) -> None:
+        # -- init class --
+        self.app = parent
+
+        # -- click coordinate memory --
+        self.button_1_down_coord:Tuple[int, int] = (None, None)
+        self.button_1_up_coord:Tuple[int, int] = (None, None)
+
+        self.button_3_down_coord:Tuple[int, int] = (None, None)
+        self.button_3_up_coord:Tuple[int, int] = (None, None)
+
+        # -- mouse click --
+        self.app.view_5.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
+        self.app.view_5.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
+
+        self.app.view_5.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
+        self.app.view_5.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
+
+        # -- hover canvas --
+        self.app.view_5.canvas.get_tk_widget().bind("<Enter>", self.hover_canvas_in)  # mouse pointer entered the widget
+        self.app.view_5.canvas.get_tk_widget().bind("<Leave>", self.hover_canvas_out) # mouse pointer left the widget
+
+    # ---------------------------------------------------------------
+    # LEFT MOUSE CLICK
+    # ---------------------------------------------------------------
+
+    def record_button_1_down(self, event) -> None:
+        self.button_1_down_coord:Tuple[int, int] = (event.x, event.y)
+    
+    def record_button_1_up(self, event) -> None:
+        self.button_1_up_coord:Tuple[int, int] = (event.x, event.y)
+
+        # -- incomplete action --------------------------------------
+        if self.button_1_down_coord == (None, None) or self.button_1_up_coord == (None, None):
+            pass
+        
+        # -- create bar ---------------------------------------------
+        elif self.button_1_down_coord == self.button_1_up_coord:
+            x_pos = self.app.convert_x_pos(self.button_1_up_coord[0])
+            bar_exists:bool = self.app.data_5.bar_exists(x=x_pos)
+            if bar_exists is True:
+                print(f"A bar already exists at: {event.x} {event.y} | {x_pos}")
+            else:
+                self.app.data_2.insert_bar(x_pos)
+                self.app.view_2.insert_bar(x_pos)
+
+                self.app.data_3.insert_bar(x_pos)
+                self.app.view_3.insert_bar(x_pos)
+
+                self.app.data_5.insert_bar(x_pos)
+                self.app.view_5.insert_bar(x_pos)
+
+                print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
+
+        # -- move bar -----------------------------------------------
+        else:
+            # -- convert coordinates --
+            x_from = self.app.convert_x_pos(self.button_1_down_coord[0])
+            x_to   = self.app.convert_x_pos(self.button_1_up_coord[0])
+
+            # -- get closest bar (from previous position) --
+            x_closest_bar = self.app.data_5.get_closest_bar(x_from)
+
+            if x_closest_bar is not None:
+                if self.app.data_5.validate_new_bar_pos(x_from=x_closest_bar, x_to=x_to) is True:
+                    # -- update data (bars & time series) [data_2] --
+                    self.app.data_2.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_2.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_2.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_2.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
+                    # -- update data (bars & time series) [data_3] --
+                    self.app.data_3.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_3.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_3.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
+                    # -- update data (bars & time series) [data_5] --
+                    self.app.data_5.delete_bar(x_closest_bar)
+                    closest_bars = self.app.data_5.get_closest_bars(x=x_to)
+                    print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
+                    self.app.data_5.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_5.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
+
+                    # -- update graph --
+                    self.app.view_2.get_plot()
+                    self.app.view_3.get_plot()
+                    self.app.view_5.get_plot()
+
+                    # -- log message --
+                    print("A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                        x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                        x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                        x_from=x_from, x_to=x_to
+                        )
+                    )
+                else:
+                    print("A bar could not be moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to} (can't cross other bars)".format(
+                        x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                        x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                        x_from=x_from, x_to=x_to
+                        )
+                    )
+            else:
+                print("No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
+                    x0=self.button_1_down_coord[0], y0=self.button_1_down_coord[1],
+                    x1=self.button_1_up_coord[0], y1=self.button_1_up_coord[1],
+                    x_from=x_from, x_to=x_to
+                    )
+                )
+        
+        # -- reset coord --------------------------------------------
+        self.button_1_down_coord == (None, None)
+        self.button_1_up_coord == (None, None)
+    
+    # ---------------------------------------------------------------
+    # RIGHT MOUSE CLICK
+    # ---------------------------------------------------------------
+
+    def record_button_3_down(self, event) -> None:
+        self.button_3_down_coord:Tuple[int, int] = (event.x, event.y)
+    
+    def record_button_3_up(self, event) -> None:
+        self.button_3_up_coord:Tuple[int, int] = (event.x, event.y)
+
+        # -- incomplete action --------------------------------------
+        if self.button_3_down_coord == (None, None) or self.button_3_up_coord == (None, None):
+            pass
+
+        # -- delete bar ---------------------------------------------
+        elif self.button_3_down_coord == self.button_3_up_coord:
+            x = self.app.convert_x_pos(event.x)
+            x_bar_pos = self.app.data_5.get_closest_bar(x=x)
+            if x_bar_pos is None:
+                print(f"No bar to delete from: {event.x} {event.y} | {x}")
+            else:
+                self.app.data_2.delete_bar(x_bar_pos)
+                self.app.view_2.delete_bar(x_bar_pos)
+
+                self.app.data_3.delete_bar(x_bar_pos)
+                self.app.view_3.delete_bar(x_bar_pos)
+
+                self.app.data_5.delete_bar(x_bar_pos)
+                self.app.view_5.delete_bar(x_bar_pos)
+
+                print(f"A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
+        else:
+            pass
+
+        # -- reset coord --------------------------------------------
+        self.button_3_down_coord == (None, None)
+        self.button_3_up_coord == (None, None)
+    
+    # ---------------------------------------------------------------
+    # HOVER FRAME
+    # ---------------------------------------------------------------
+
+    def hover_canvas_in(self, event) -> None:
+        self.app.view_5.set_bg_color(color=self.app.hover_color)
+
+    def hover_canvas_out(self, event) -> None:
+        self.app.view_5.set_bg_color(color=(1.0, 1.0, 1.0))
 
 
 # -------------------------------------------------------------------
