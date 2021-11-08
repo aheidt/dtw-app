@@ -163,6 +163,7 @@ class MenuBar(tk.Menu):
         filemenu.add_command(label="Restart", command=self.restart, accelerator="Ctrl+R")
         filemenu.add_separator()
         filemenu.add_command(label="Load Project", command=self.load_project, accelerator="Ctrl+O")
+        filemenu.add_command(label="Save Project as...", command=self.save_project_as, accelerator=None)
         filemenu.add_command(label="Save Project", command=self.save_project, accelerator="Ctrl+S")
         filemenu.add_separator()
         filemenu.add_command(label="Open .wav (Original)", command=self.on_open_wav_original, accelerator="Ctrl+I")
@@ -259,11 +260,24 @@ class MenuBar(tk.Menu):
         self.app.view_1.get_plot()
         self.app.view_2.get_plot()
         self.app.view_3.get_plot()
+        self.app.view_4.get_plot()
+        self.app.view_5.get_plot()
+
+    def save_project_as(self) -> None:
+        # -- save data --
+        self.app.project_data.filename = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+        self.app.project_data.save_file(filename=self.app.project_data.filename)
 
     def save_project(self) -> None:
+        """
+            Saves the project without asking for a file location, if it has already been defined previously.
+        """
         # -- save data --
-        filename = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
-        self.app.project_data.save_file(filename=filename)
+        if self.app.project_data.filename is None:
+            self.app.project_data.filename = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+            self.app.project_data.save_file(filename=self.app.project_data.filename)
+        else:
+            self.app.project_data.save_file(filename=self.app.project_data.filename)
 
     # ---------------------------------------------------------------
 
@@ -347,7 +361,9 @@ class MenuBar(tk.Menu):
         self.app.dtw_obj = DTW(x_raw=self.app.data_1.y, y_raw=self.app.data_2.y, fs=self.app.data_1.fs, df_midi=None)
         
         print("Computing chroma features...")
-        self.app.dtw_obj.compute_chroma_features()
+        # self.app.dtw_obj.compute_chroma_features()
+        self.app.dtw_obj.x_chroma = self.app.data_4.chroma
+        self.app.dtw_obj.y_chroma = self.app.data_5.chroma
         
         print("Computing DTW...")
         self.app.dtw_obj.compute_dtw()
@@ -564,6 +580,7 @@ class ProjectData():
     def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
+        self.filename = None
     
     def load_demo(self) -> None:
         # -- data source --
@@ -1472,7 +1489,7 @@ class View4():
             self.axes.cla()
 
             # -- create plot --
-            self.axes.pcolormesh(self.app.data_4.x, self.app.data_4.y, self.app.data_4.chroma)
+            self.axes.pcolormesh(self.app.data_4.x, self.app.data_4.y, self.app.data_4.chroma, shading='auto')
 
             # -- adjust axis style --
             self.axes.set_xlim([self.app.x_min, self.app.x_max])
@@ -1522,7 +1539,7 @@ class View5():
             self.axes.cla()
 
             # -- create plot --
-            self.axes.pcolormesh(self.app.data_5.x, self.app.data_5.y, self.app.data_5.chroma)
+            self.axes.pcolormesh(self.app.data_5.x, self.app.data_5.y, self.app.data_5.chroma, shading='auto')
 
             # -- adjust axis style --
             self.axes.set_xlim([self.app.x_min, self.app.x_max])
