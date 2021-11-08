@@ -1,6 +1,10 @@
 # custom:
 midi_files/
 wav_files/
+*.mid
+*.wav
+*.data
+!demo.data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
