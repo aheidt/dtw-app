@@ -3,6 +3,7 @@ midi_files/
 wav_files/
 *.mid
 *.wav
+*.mp3
 *.data
 !demo.data
 
