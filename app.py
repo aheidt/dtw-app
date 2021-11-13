@@ -221,34 +221,27 @@ class MenuBar(tk.Menu):
         self.app.bind('<Control-Left>', self.ctrl_left)
 
         # -- create menu (Play) -------------------------------------
-        # self.track_1 = tk.BooleanVar()
-        # self.track_1.set(value=True)
-        # self.track_2 = tk.BooleanVar()
-        # self.track_2.set(value=False)
         self.track = tk.IntVar()
         self.track.set(value=1)
+
+        self.volume = tk.IntVar()
+        self.volume.set(value=100)
 
         playmenu = tk.Menu(menubar, tearoff=0)
         playmenu.add_command(label="Play", command=self.play, accelerator="F9")
         playmenu.add_command(label="Pause/Continue", command=self.pause, accelerator="Space")
         playmenu.add_command(label="Stop", command=self.stop, accelerator="F10")
         playmenu.add_separator()
-        # playmenu.add_checkbutton(label="Track 1", onvalue=True, offvalue=False, variable=self.track_1, accelerator="F11")
-        # playmenu.add_checkbutton(label="Track 2", onvalue=True, offvalue=False, variable=self.track_2, accelerator="F12")
-        # playmenu.add_checkbutton(label="Track 1", variable=self.track_1, accelerator="F11", command=self.toggle_track_1)
-        # playmenu.add_checkbutton(label="Track 2", variable=self.track_2, accelerator="F12", command=self.toggle_track_2)
         playmenu.add_radiobutton(label="Track 1", value=1, variable=self.track, accelerator="F11", command=self.enable_track_1)
         playmenu.add_radiobutton(label="Track 2", value=2, variable=self.track, accelerator="F12", command=self.enable_track_2)
-
-        # playmenu.add_separator()
-        # playback_speed = tk.Menu(playmenu, tearoff=0)
-        # playback_speed.add_command(label="x0.25")
-        # playback_speed.add_command(label="x0.50")
-        # playback_speed.add_command(label="x0.75")
-        # playback_speed.add_command(label="x1.00")
-        # playback_speed.add_command(label="x1.25")
-        # playback_speed.add_command(label="x1.50")
-        # playmenu.add_cascade(label="Playback Speed", menu=playback_speed)
+        playmenu.add_separator()
+        volume = tk.Menu(playmenu, tearoff=0)
+        volume.add_radiobutton(label="0%", value=0, variable=self.volume, command=self.adjust_volume)
+        volume.add_radiobutton(label="25%", value=25, variable=self.volume, command=self.adjust_volume)
+        volume.add_radiobutton(label="50%", value=50, variable=self.volume, command=self.adjust_volume)
+        volume.add_radiobutton(label="75%", value=75, variable=self.volume, command=self.adjust_volume)
+        volume.add_radiobutton(label="100%", value=100, variable=self.volume, command=self.adjust_volume)
+        playmenu.add_cascade(label="Volume", menu=volume)
 
         self.app.bind('<space>', self.space)
         self.app.bind('<F9>', self.f9)
@@ -542,17 +535,6 @@ class MenuBar(tk.Menu):
 
     def play(self) -> None:
         self.app.mp.play()
-        # if self.track_1.get() is True and self.track_2.get() is True:
-        #     # play both track
-        #     pass
-        # elif self.track_1.get() is True:
-        #     # play track1
-        #     pass
-        # elif self.track_2.get() is True:
-        #     # play track2
-        #     pass
-        # else:
-        #     print("No track selected to play")
 
     def pause(self) -> None:
         self.app.mp.pause()
@@ -567,24 +549,9 @@ class MenuBar(tk.Menu):
     def enable_track_2(self) -> None:
         self.track.set(value=2)
         self.app.mp.load_track()
-
-    # def toggle_track_1(self) -> None:
-    #     if self.track_1.get() is True:
-    #         self.track_1.set(value=False)
-    #     elif self.track_1.get() is False:
-    #         self.track_1.set(value=True)
-    #         self.track_2.set(value=False)
-    #     else:
-    #         raise ValueError
-
-    # def toggle_track_2(self) -> None:
-    #     if self.track_2.get() is True:
-    #         self.track_2.set(value=False)
-    #     elif self.track_2.get() is False:
-    #         self.track_2.set(value=True)
-    #         self.track_1.set(value=False)
-    #     else:
-    #         raise ValueError
+    
+    def adjust_volume(self) -> None:
+        self.app.mp.adjust_volume()
 
     # -- HELP -------------------------------------------------------
 
@@ -1747,6 +1714,9 @@ class MusicPlayer():
     
     def stop(self) -> None:
         mixer.music.stop()
+    
+    def adjust_volume(self) -> None:
+        mixer.music.set_volume(self.app.menubar.volume.get()/100)
 
 
 # -------------------------------------------------------------------
