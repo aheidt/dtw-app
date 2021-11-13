@@ -4,7 +4,11 @@ wav_files/
 *.mid
 *.wav
 *.mp3
+*.mp4
 *.data
+*.png
+*.blend*
+*.bat
 !demo.data
 
 # Byte-compiled / optimized / DLL files
