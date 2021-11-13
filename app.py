@@ -20,6 +20,9 @@ from matplotlib.colors import Normalize
 import matplotlib.collections
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+# -- music player --
+from pygame import mixer
+
 # -- dtw --
 import librosa
 import librosa.display
@@ -99,12 +102,15 @@ class App(tk.Tk):
         # -------------------------------------------------
 
         # -- init menubar --
-        menubar = MenuBar(self)
-        self.config(menu=menubar)
+        self.menubar = MenuBar(self)
+        self.config(menu=self.menubar)
 
         # -- init events --
         self.click_events = ClickEvents(self)
         self.hover_events = HoverEvents(self)
+
+        # -- init musicplayer --
+        self.mp = MusicPlayer(self)
 
     # -- MISC ---------------------------------------------
 
@@ -214,6 +220,42 @@ class MenuBar(tk.Menu):
         self.app.bind('<Control-Right>', self.ctrl_right)
         self.app.bind('<Control-Left>', self.ctrl_left)
 
+        # -- create menu (Play) -------------------------------------
+        # self.track_1 = tk.BooleanVar()
+        # self.track_1.set(value=True)
+        # self.track_2 = tk.BooleanVar()
+        # self.track_2.set(value=False)
+        self.track = tk.IntVar()
+        self.track.set(value=1)
+
+        playmenu = tk.Menu(menubar, tearoff=0)
+        playmenu.add_command(label="Play", command=self.play, accelerator="F9")
+        playmenu.add_command(label="Pause/Continue", command=self.pause, accelerator="Space")
+        playmenu.add_command(label="Stop", command=self.stop, accelerator="F10")
+        playmenu.add_separator()
+        # playmenu.add_checkbutton(label="Track 1", onvalue=True, offvalue=False, variable=self.track_1, accelerator="F11")
+        # playmenu.add_checkbutton(label="Track 2", onvalue=True, offvalue=False, variable=self.track_2, accelerator="F12")
+        # playmenu.add_checkbutton(label="Track 1", variable=self.track_1, accelerator="F11", command=self.toggle_track_1)
+        # playmenu.add_checkbutton(label="Track 2", variable=self.track_2, accelerator="F12", command=self.toggle_track_2)
+        playmenu.add_radiobutton(label="Track 1", value=1, variable=self.track, accelerator="F11", command=self.enable_track_1)
+        playmenu.add_radiobutton(label="Track 2", value=2, variable=self.track, accelerator="F12", command=self.enable_track_2)
+
+        # playmenu.add_separator()
+        # playback_speed = tk.Menu(playmenu, tearoff=0)
+        # playback_speed.add_command(label="x0.25")
+        # playback_speed.add_command(label="x0.50")
+        # playback_speed.add_command(label="x0.75")
+        # playback_speed.add_command(label="x1.00")
+        # playback_speed.add_command(label="x1.25")
+        # playback_speed.add_command(label="x1.50")
+        # playmenu.add_cascade(label="Playback Speed", menu=playback_speed)
+
+        self.app.bind('<space>', self.space)
+        self.app.bind('<F9>', self.f9)
+        self.app.bind('<F10>', self.f10)
+        self.app.bind('<F11>', self.f11)
+        self.app.bind('<F12>', self.f12)
+
         # -- create menu (Help) -------------------------------------
         helpmenu = tk.Menu(menubar, tearoff=0)
         helpmenu.add_command(label="Help", command=self.help)
@@ -222,6 +264,7 @@ class MenuBar(tk.Menu):
         self.add_cascade(label="File", menu=filemenu)
         self.add_cascade(label="DTW", menu=dtwmenu)
         self.add_cascade(label="View", menu=viewmenu)
+        self.add_cascade(label="Play", menu=playmenu)
         self.add_cascade(label="Help", menu=helpmenu)
     
     # ---------------------------------------------------------------
@@ -495,6 +538,54 @@ class MenuBar(tk.Menu):
         self.app.view_4.reload_axis()
         self.app.view_5.reload_axis()
 
+    # -- PLAY -------------------------------------------------------
+
+    def play(self) -> None:
+        self.app.mp.play()
+        # if self.track_1.get() is True and self.track_2.get() is True:
+        #     # play both track
+        #     pass
+        # elif self.track_1.get() is True:
+        #     # play track1
+        #     pass
+        # elif self.track_2.get() is True:
+        #     # play track2
+        #     pass
+        # else:
+        #     print("No track selected to play")
+
+    def pause(self) -> None:
+        self.app.mp.pause()
+
+    def stop(self) -> None:
+        self.app.mp.stop()
+
+    def enable_track_1(self) -> None:
+        self.track.set(value=1)
+        self.app.mp.load_track()
+    
+    def enable_track_2(self) -> None:
+        self.track.set(value=2)
+        self.app.mp.load_track()
+
+    # def toggle_track_1(self) -> None:
+    #     if self.track_1.get() is True:
+    #         self.track_1.set(value=False)
+    #     elif self.track_1.get() is False:
+    #         self.track_1.set(value=True)
+    #         self.track_2.set(value=False)
+    #     else:
+    #         raise ValueError
+
+    # def toggle_track_2(self) -> None:
+    #     if self.track_2.get() is True:
+    #         self.track_2.set(value=False)
+    #     elif self.track_2.get() is False:
+    #         self.track_2.set(value=True)
+    #         self.track_1.set(value=False)
+    #     else:
+    #         raise ValueError
+
     # -- HELP -------------------------------------------------------
 
     def help(self):
@@ -570,6 +661,23 @@ class MenuBar(tk.Menu):
 
     def ctrl_left(self, event) -> None:
         self.scroll_left()
+
+    # -- PLAY -------------------------------------------------------
+
+    def space(self, event) -> None:
+        self.pause()
+    
+    def f9(self, event) -> None:
+        self.play()
+
+    def f10(self, event) -> None:
+        self.stop()
+
+    def f11(self, event) -> None:
+        self.enable_track_1()
+    
+    def f12(self, event) -> None:
+        self.enable_track_2()
 
 
 # -------------------------------------------------------------------
@@ -837,7 +945,7 @@ class Data1():
         self.app = parent
 
         # -- data source --
-        self.filename = ""
+        self.filename = None
 
         # -- init dataset --
         self.x = np.arange(0, 1.001, 0.001).round(2).tolist()
@@ -1587,6 +1695,58 @@ class HoverEvents():
 
     def view_5_out(self, event) -> None:
         self.app.view_5.set_bg_color(color=(1.0, 1.0, 1.0))
+
+
+class MusicPlayer():
+    def __init__(self, parent:App) -> None:
+        # -- init class --
+        self.app = parent
+
+        # -- init constants --
+        self.playing_state:bool = False
+        self.track_loaded:bool = False
+
+        # -- init music --
+        mixer.init()
+        self.load_track()
+
+    def load_track(self) -> None:
+        if self.app.menubar.track.get() == 1:
+            if self.app.data_1.filename:
+                mixer.music.load(self.app.data_1.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
+                self.track_loaded = True
+            else:
+                self.track_loaded = False
+                print("No music file to play")
+        elif self.app.menubar.track.get() == 2:
+            if self.app.data_1.filename:
+                mixer.music.load(self.app.data_2.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
+                self.track_loaded = True
+            else:
+                self.track_loaded = False
+                print("No music file to play")
+        else:
+            raise ValueError("Expecting a value of 1 or 2 for self.app.menubar.track")
+    
+    def play(self):
+        if self.track_loaded is True:
+            mixer.music.play()
+            self.playing_state = True
+        else:
+            print("Please load track before playing")
+
+    def pause(self) -> None:
+        if self.playing_state is True:
+            mixer.music.pause()
+            self.playing_state = False
+        elif self.playing_state is False:
+            mixer.music.unpause()
+            self.playing_state = True
+        else:
+            raise ValueError("Expecting a value of True or False for self.playing_state")
+    
+    def stop(self) -> None:
+        mixer.music.stop()
 
 
 # -------------------------------------------------------------------
