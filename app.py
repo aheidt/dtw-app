@@ -70,6 +70,7 @@ class App(tk.Tk):
         # -- window style --
         self.geometry('1200x640')
         self.title("Dynamic Time Warp Tool")
+        self.iconbitmap(os.path.join(os.path.dirname(__file__), "logo.ico"))
 
         # -- init constants --
         self.x_min:Union[int,float] = 0 # xlim of current view
@@ -238,6 +239,8 @@ class MenuBar(tk.Menu):
         self.app.view_1.get_plot()
         self.app.view_2.get_plot()
         self.app.view_3.get_plot()
+        self.app.view_4.get_plot()
+        self.app.view_5.get_plot()
 
     def restart(self) -> None:
         self.app.destroy()
