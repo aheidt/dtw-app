@@ -13,6 +13,7 @@ import pandas as pd
 import os
 from typing import List, Optional, Tuple, Union
 import pickle
+from datetime import datetime
 
 # -- plotting --
 import matplotlib.pyplot as plt
@@ -21,7 +22,9 @@ import matplotlib.collections
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # -- music player --
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'True'
 from pygame import mixer
+from mutagen.mp3 import MP3
 
 # -- dtw --
 import librosa
@@ -288,6 +291,9 @@ class MenuBar(tk.Menu):
     def load_project(self) -> None:
         # -- load data --
         filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+        if filename == "":
+            print("Cancelled loading project")
+            return None
         self.app.project_data.load_file(filename=filename)
 
         # -- reset graph limits --
@@ -300,9 +306,18 @@ class MenuBar(tk.Menu):
         self.app.view_4.get_plot()
         self.app.view_5.get_plot()
 
+        # -- load audiofile --
+        try:
+            self.app.mp.load_track()
+        except Exception:
+            print("Could not load audio for playback")
+
     def save_project_as(self) -> None:
         # -- save data --
         self.app.project_data.filename = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+        if self.app.project_data.filename == "":
+            print("Cancelled saving project")
+            return None
         self.app.project_data.save_file(filename=self.app.project_data.filename)
 
     def save_project(self) -> None:
@@ -312,6 +327,9 @@ class MenuBar(tk.Menu):
         # -- save data --
         if self.app.project_data.filename is None:
             self.app.project_data.filename = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("data files","*.data;*.DATA"),("All files","*.*")))
+            if self.app.project_data.filename == "":
+                print("Cancelled saving project")
+                return None
             self.app.project_data.save_file(filename=self.app.project_data.filename)
         else:
             self.app.project_data.save_file(filename=self.app.project_data.filename)
@@ -321,6 +339,10 @@ class MenuBar(tk.Menu):
     def on_open_wav_original(self) -> None:
         # -- load dataset --
         filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
+        
+        if filename == "":
+            print("Cancelled opening original wav file")
+            return None
         
         print("Loading wav file...")
         self.app.data_1.load_file(filename)
@@ -340,9 +362,17 @@ class MenuBar(tk.Menu):
         self.app.view_4.get_plot()
         self.app.view_5.reload_axis()
 
+        # -- load audiofile --
+        if self.track.get() == 1:
+            self.app.mp.load_track()
+
     def on_open_wav_from_midi(self) -> None:
         # -- load dataset --
         filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
+        
+        if filename == "":
+            print("Cancelled opening wav from midi")
+            return None
         
         print("Loading wav file...")
         self.app.data_2.load_file(filename)
@@ -361,10 +391,19 @@ class MenuBar(tk.Menu):
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
         self.app.view_5.get_plot()
+
+        # -- load audiofile --
+        if self.track.get() == 2:
+            self.app.mp.load_track()
         
     def on_open_midi(self) -> None:
         # -- load dataset --
         filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
+        
+        if filename == "":
+            print("Cancelled opening midi file")
+            return None
+        
         self.app.data_3.load_file(filename)
 
         # -- reset graph limits --
@@ -381,6 +420,10 @@ class MenuBar(tk.Menu):
 
     def on_save_midi(self) -> None:
         self.app.data_3.outfile = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
+        if self.app.data_3.outfile == "":
+            print("Cancelled saving midi file")
+            return None
+        
         if self.app.data_3.outfile.endswith((".mid", ".MID")) is False:
             self.app.data_3.outfile += ".mid"
         MidiIO.export_midi(df_midi=self.app.data_3.df_midi, outfile=self.app.data_3.outfile, time_colname="time abs (sec)")
@@ -912,7 +955,7 @@ class Data1():
         self.app = parent
 
         # -- data source --
-        self.filename = None
+        self.filename:Optional[str] = None
 
         # -- init dataset --
         self.x = np.arange(0, 1.001, 0.001).round(2).tolist()
@@ -948,7 +991,7 @@ class Data2():
         self.app = parent
 
         # -- data source --
-        self.filename = ""
+        self.filename:Optional[str] = None
 
         # -- init dataset --
         self.x = np.arange(0, 1.001, 0.001).round(2).tolist()
@@ -1013,8 +1056,8 @@ class Data3():
         self.app = parent
 
         # -- data source --
-        self.filename:str = ""
-        self.outfile:str = ""
+        self.filename:Optional[str] = None
+        self.outfile:Optional[str] = None
 
         # -- init dataset --
         self.df_midi:pd.DataFrame = pd.DataFrame()
@@ -1171,6 +1214,16 @@ class View1():
         self.axes.grid(axis="x")
         self.canvas.draw()
 
+    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
+        self.axes.axvline(x=x, color=color, gid=str(x))
+        self.canvas.draw()
+    
+    def delete_bar(self, x:Union[int,float]) -> None:
+        for c in self.axes.lines:
+            if c.get_gid() == str(x):
+                c.remove()
+        self.canvas.draw()
+    
     def reload_axis(self):
         self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.canvas.draw()
@@ -1215,8 +1268,8 @@ class View2():
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
     
-    def insert_bar(self, x:Union[int,float]) -> None:
-        self.axes.axvline(x=x, color='red', gid=str(x))
+    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
+        self.axes.axvline(x=x, color=color, gid=str(x))
         self.canvas.draw()
     
     def delete_bar(self, x:Union[int,float]) -> None:
@@ -1300,8 +1353,8 @@ class View3():
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
 
-    def insert_bar(self, x:Union[int,float]) -> None:
-        self.axes.axvline(x=x, color='red', gid=str(x))
+    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
+        self.axes.axvline(x=x, color=color, gid=str(x))
         self.canvas.draw()
     
     def delete_bar(self, x:Union[int,float]) -> None:
@@ -1360,6 +1413,16 @@ class View4():
             # -- draw graph --
             self.canvas.draw()
     
+    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
+        self.axes.axvline(x=x, color=color, gid=str(x))
+        self.canvas.draw()
+    
+    def delete_bar(self, x:Union[int,float]) -> None:
+        for c in self.axes.lines:
+            if c.get_gid() == str(x):
+                c.remove()
+        self.canvas.draw()
+    
     def reload_axis(self):
         self.axes.set_xlim([self.app.x_min, self.app.x_max])
         self.canvas.draw()
@@ -1414,8 +1477,8 @@ class View5():
             # -- draw graph --
             self.canvas.draw()
 
-    def insert_bar(self, x:Union[int,float]) -> None:
-        self.axes.axvline(x=x, color='red', gid=str(x))
+    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
+        self.axes.axvline(x=x, color=color, gid=str(x))
         self.canvas.draw()
     
     def delete_bar(self, x:Union[int,float]) -> None:
@@ -1670,50 +1733,172 @@ class MusicPlayer():
         self.app = parent
 
         # -- init constants --
-        self.playing_state:bool = False
-        self.track_loaded:bool = False
+        self.track_loaded:bool = False           # the music file was loaded and is ready to be played
+        self.track_length:Optional[float] = None # length of the audio is seconds
+        self.play_button_pressed:bool = False    # was the play button pressed? (i.e. is the track active?) (required self.track_loaded)
+        self.playing_state:bool = False          # is the track currently being played or paused? (required self.play_button_pressed)
+        self.steps:float = 0.2                   # step size in seconds to display track progression in the wave plot
+        self.slider_pos:Optional[float] = None   # current position of the track progression slider in the wave plot in seconds
+
+        self.slider_pos_last:Optional[float] = None
+        self.error_counter:int = 0               # ugly variable to circumvent a bug
 
         # -- init music --
         mixer.init()
         self.load_track()
 
     def load_track(self) -> None:
+        # -- clean up previous track --
+        if self.play_button_pressed:
+            self.stop()
+
+        # -- loading track --
         if self.app.menubar.track.get() == 1:
             if self.app.data_1.filename:
                 mixer.music.load(self.app.data_1.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
+                self.get_track_len()
                 self.track_loaded = True
             else:
                 self.track_loaded = False
                 print("No music file to play")
         elif self.app.menubar.track.get() == 2:
-            if self.app.data_1.filename:
+            if self.app.data_2.filename:
                 mixer.music.load(self.app.data_2.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
+                self.get_track_len()
                 self.track_loaded = True
             else:
                 self.track_loaded = False
                 print("No music file to play")
         else:
             raise ValueError("Expecting a value of 1 or 2 for self.app.menubar.track")
+
+    def get_track_len(self) -> None:
+        if self.app.menubar.track.get() == 1:
+            if self.app.data_1.filename:
+                if self.app.data_1.filename.endswith(".mp3"):
+                    self.track_length = MP3(self.app.data_1.filename).info.length
+                elif self.app.data_1.filename.endswith(".wav") or self.app.data_1.filename.endswith(".ogg"):
+                    self.track_length = mixer.Sound(self.app.data_1.filename).get_length()
+                else:
+                    print("get_track_len only supports mp3, wav and ogg")
+            else:
+                self.track_loaded = False
+                print("No music file to get length of")
+        elif self.app.menubar.track.get() == 2:
+            if self.app.data_2.filename:
+                if self.app.data_2.filename.endswith(".mp3"):
+                    self.track_length = MP3(self.app.data_2.filename).info.length
+                elif self.app.data_2.filename.endswith(".wav") or self.app.data_1.filename.endswith(".ogg"):
+                    self.track_length = mixer.Sound(self.app.data_2.filename).get_length()
+                else:
+                    print("get_track_len only supports mp3, wav and ogg")
+            else:
+                self.track_loaded = False
+                print("No music file to get length of")
+        else:
+            raise ValueError("Expecting a value of 1 or 2 for self.app.menubar.track")
     
-    def play(self):
+    def play(self) -> None:
         if self.track_loaded is True:
             mixer.music.play()
+            self.play_button_pressed = True
             self.playing_state = True
+            self.error_counter = 0
+            self.playing()
         else:
             print("Please load track before playing")
+    
+    def playing(self) -> None:
+        """
+            This method calls itself repeatedly while the track is playing, to update various things based on track playback progression.
+            This method does not support the playback itself, it is just used to obtain useful info.
+
+            Bug:
+                The mixer.music.get_pos method has a bug. The first get_pos call after unpausing track is incorrect, it returns the time we would be at if we hadn't paused !!
+        """
+        if self.playing_state is False:
+            return None
+        
+        try:
+            # -- grab current song progression --
+            self.slider_pos_last = self.slider_pos
+            if self.slider_pos_last is None:
+                self.slider_pos_last = 0
+            current_time = mixer.music.get_pos() / 1000 # seconds
+            print(datetime.fromtimestamp(current_time).strftime('%M:%S.%f'))
+            self.slider_pos_last = min(self.slider_pos_last, current_time)
+
+            # -- do things --
+            if self.slider_pos_last + 0.01 > self.track_length:
+                self.playing_state = False
+                if self.app.menubar.track.get() == 1:
+                    self.app.view_1.delete_bar(x=self.slider_pos)
+                elif self.app.menubar.track.get() == 2:
+                    self.app.view_2.delete_bar(x=self.slider_pos)
+                else:
+                    raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
+                print("End of track")
+                self.stop()
+                return None
+            else:
+                if self.slider_pos is not None:
+                    if self.app.menubar.track.get() == 1:
+                        self.app.view_1.delete_bar(x=self.slider_pos)
+                    elif self.app.menubar.track.get() == 2:
+                        self.app.view_2.delete_bar(x=self.slider_pos)
+                    else:
+                        raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
+                
+                if self.app.menubar.track.get() == 1:
+                    self.app.view_1.insert_bar(x=current_time, color='green')
+                elif self.app.menubar.track.get() == 2:
+                    self.app.view_2.insert_bar(x=current_time, color='green')
+                else:
+                    raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
+                
+                self.slider_pos = current_time
+                self.app.after(int(self.steps*1000), self.playing)
+        except Exception:
+            if self.error_counter > 2:
+                print("End of track")
+                self.stop()
+            else:
+                self.error_counter += 1
+                # print(self.error_counter)
+                self.app.after(int(self.steps*1000), self.playing)
 
     def pause(self) -> None:
-        if self.playing_state is True:
-            mixer.music.pause()
+        if self.play_button_pressed is False:
+            self.play()
+        elif self.playing_state is True:
             self.playing_state = False
+            mixer.music.pause()
         elif self.playing_state is False:
-            mixer.music.unpause()
             self.playing_state = True
+            mixer.music.unpause() # track needs to be paused !! (play button pressed once, otherwise throws an exception)
+            self.error_counter = 0
+            self.playing()
         else:
             raise ValueError("Expecting a value of True or False for self.playing_state")
     
     def stop(self) -> None:
+        # -- stop music player --
         mixer.music.stop()
+
+        # -- remove the slider --
+        try:
+            self.app.view_1.delete_bar(x=self.slider_pos)
+        except Exception:
+            pass
+        try:
+            self.app.view_2.delete_bar(x=self.slider_pos)
+        except Exception:
+            pass
+            
+        # -- reset constants --
+        self.play_button_pressed = False
+        self.playing_state = False
+        self.slider_pos = None
     
     def adjust_volume(self) -> None:
         mixer.music.set_volume(self.app.menubar.volume.get()/100)
