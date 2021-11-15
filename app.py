@@ -1738,10 +1738,10 @@ class MusicPlayer():
         self.play_button_pressed:bool = False    # was the play button pressed? (i.e. is the track active?) (required self.track_loaded)
         self.playing_state:bool = False          # is the track currently being played or paused? (required self.play_button_pressed)
         self.steps:float = 0.2                   # step size in seconds to display track progression in the wave plot
-        self.slider_pos:Optional[float] = None   # current position of the track progression slider in the wave plot in seconds
 
-        self.slider_pos_last:Optional[float] = None
-        self.error_counter:int = 0               # ugly variable to circumvent a bug
+        self.slider_pos:Optional[float] = None   # current position of the track progression slider in the wave plot in seconds
+        self.slider_pos_last:Optional[float] = None # last position of the track progression slider in the wave plot in seconds
+        self.override_time:bool = False          # ugly variable to circumvent a bug
 
         # -- init music --
         mixer.init()
@@ -1803,7 +1803,6 @@ class MusicPlayer():
             mixer.music.play()
             self.play_button_pressed = True
             self.playing_state = True
-            self.error_counter = 0
             self.playing()
         else:
             print("Please load track before playing")
@@ -1815,57 +1814,53 @@ class MusicPlayer():
 
             Bug:
                 The mixer.music.get_pos method has a bug. The first get_pos call after unpausing track is incorrect, it returns the time we would be at if we hadn't paused !!
+                To circumvent this bug, we use the last time before pausing when unpausing the track, instead of the current time.
         """
+        # -- exit function if track is suddenly paused --
         if self.playing_state is False:
             return None
-        
-        try:
-            # -- grab current song progression --
-            self.slider_pos_last = self.slider_pos
-            if self.slider_pos_last is None:
-                self.slider_pos_last = 0
-            current_time = mixer.music.get_pos() / 1000 # seconds
-            print(datetime.fromtimestamp(current_time).strftime('%M:%S.%f'))
-            self.slider_pos_last = min(self.slider_pos_last, current_time)
 
-            # -- do things --
-            if self.slider_pos_last + 0.01 > self.track_length:
-                self.playing_state = False
-                if self.app.menubar.track.get() == 1:
-                    self.app.view_1.delete_bar(x=self.slider_pos)
-                elif self.app.menubar.track.get() == 2:
-                    self.app.view_2.delete_bar(x=self.slider_pos)
-                else:
-                    raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
-                print("End of track")
-                self.stop()
-                return None
-            else:
-                if self.slider_pos is not None:
-                    if self.app.menubar.track.get() == 1:
-                        self.app.view_1.delete_bar(x=self.slider_pos)
-                    elif self.app.menubar.track.get() == 2:
-                        self.app.view_2.delete_bar(x=self.slider_pos)
-                    else:
-                        raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
-                
-                if self.app.menubar.track.get() == 1:
-                    self.app.view_1.insert_bar(x=current_time, color='green')
-                elif self.app.menubar.track.get() == 2:
-                    self.app.view_2.insert_bar(x=current_time, color='green')
-                else:
-                    raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
-                
-                self.slider_pos = current_time
-                self.app.after(int(self.steps*1000), self.playing)
+        # -- set position of last slider position --
+        self.slider_pos_last = self.slider_pos
+        if self.slider_pos_last is None:
+            self.slider_pos_last = 0
+        
+        # -- set position of current slider position --
+        current_time = mixer.music.get_pos() / 1000 # seconds
+        if self.override_time is True:
+            self.slider_pos = self.slider_pos_last
+        else:
+            self.slider_pos = current_time
+        self.override_time = False
+
+        # -- exit function if track is over --
+        if current_time == -0.001:
+            print("End of track")
+            self.stop()
+            return None
+
+        # -- print current timestamp --
+        print(datetime.fromtimestamp(self.slider_pos).strftime('%M:%S.%f'))
+
+        # -- insert the new bar --
+        if self.app.menubar.track.get() == 1:
+            self.app.view_1.insert_bar(x=self.slider_pos, color='green')
+        elif self.app.menubar.track.get() == 2:
+            self.app.view_2.insert_bar(x=self.slider_pos, color='green')
+        else:
+            raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
+        
+        # -- remove the last bar --
+        try:
+            if self.app.menubar.track.get() == 1:
+                self.app.view_1.delete_bar(x=self.slider_pos_last)
+            elif self.app.menubar.track.get() == 2:
+                self.app.view_2.delete_bar(x=self.slider_pos_last)
         except Exception:
-            if self.error_counter > 2:
-                print("End of track")
-                self.stop()
-            else:
-                self.error_counter += 1
-                # print(self.error_counter)
-                self.app.after(int(self.steps*1000), self.playing)
+            pass
+
+        # -- call the function again to update the slider --            
+        self.app.after(int(self.steps*1000), self.playing)
 
     def pause(self) -> None:
         if self.play_button_pressed is False:
@@ -1876,7 +1871,7 @@ class MusicPlayer():
         elif self.playing_state is False:
             self.playing_state = True
             mixer.music.unpause() # track needs to be paused !! (play button pressed once, otherwise throws an exception)
-            self.error_counter = 0
+            self.override_time = True
             self.playing()
         else:
             raise ValueError("Expecting a value of True or False for self.playing_state")
@@ -1892,6 +1887,14 @@ class MusicPlayer():
             pass
         try:
             self.app.view_2.delete_bar(x=self.slider_pos)
+        except Exception:
+            pass
+        try:
+            self.app.view_1.delete_bar(x=self.slider_pos_last)
+        except Exception:
+            pass
+        try:
+            self.app.view_2.delete_bar(x=self.slider_pos_last)
         except Exception:
             pass
             
