@@ -842,6 +842,7 @@ class Bars():
 
         # -- edit memory --
         self.bars:List[Optional[Union[int,float]]] = [] # keep in synch with the bars of Data3 !!
+        # make it a list of tuples, the second item in the tuple is the color
 
     # -- edit bar dataset -------------------------------------------
 
@@ -1188,7 +1189,34 @@ class Data5():
 # Views (view)
 # -------------------------------------------------------------------
 
-class View1():
+class View():
+    def __init__(self) -> None:
+        pass
+
+    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
+        self.axes.axvline(x=x, color=color, gid=str(x))
+        self.canvas.draw()
+    
+    def delete_bar(self, x:Union[int,float]) -> None:
+        for c in self.axes.lines:
+            if c.get_gid() == str(x):
+                c.remove()
+        self.canvas.draw()
+        
+    def reload_axis(self):
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
+        self.canvas.draw()
+
+    def clear_plot(self):
+        self.axes.cla()
+        self.canvas.draw()
+
+    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
+        self.axes.set_facecolor(color)
+        self.canvas.draw()
+
+
+class View1(View):
     def __init__(self, parent:App) -> None:
         self.app = parent
 
@@ -1217,30 +1245,8 @@ class View1():
         self.axes.grid(axis="x")
         self.canvas.draw()
 
-    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
-        self.axes.axvline(x=x, color=color, gid=str(x))
-        self.canvas.draw()
-    
-    def delete_bar(self, x:Union[int,float]) -> None:
-        for c in self.axes.lines:
-            if c.get_gid() == str(x):
-                c.remove()
-        self.canvas.draw()
-    
-    def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min, self.app.x_max])
-        self.canvas.draw()
 
-    def clear_plot(self):
-        self.axes.cla()
-        self.canvas.draw()
-
-    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
-        self.axes.set_facecolor(color)
-        self.canvas.draw()
-
-
-class View2():
+class View2(View):
     def __init__(self, parent:App) -> None:
         self.app = parent
 
@@ -1270,31 +1276,9 @@ class View2():
         for x in self.app.bars.bars:
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
-    
-    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
-        self.axes.axvline(x=x, color=color, gid=str(x))
-        self.canvas.draw()
-    
-    def delete_bar(self, x:Union[int,float]) -> None:
-        for c in self.axes.lines:
-            if c.get_gid() == str(x):
-                c.remove()
-        self.canvas.draw()
-        
-    def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min, self.app.x_max])
-        self.canvas.draw()
-
-    def clear_plot(self):
-        self.axes.cla()
-        self.canvas.draw()
-
-    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
-        self.axes.set_facecolor(color)
-        self.canvas.draw()
 
 
-class View3():
+class View3(View):
     def __init__(self, parent:App) -> None:
         self.app = parent
 
@@ -1356,30 +1340,8 @@ class View3():
             self.axes.axvline(x=x, color='red', gid=str(x))
         self.canvas.draw()
 
-    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
-        self.axes.axvline(x=x, color=color, gid=str(x))
-        self.canvas.draw()
-    
-    def delete_bar(self, x:Union[int,float]) -> None:
-        for c in self.axes.lines:
-            if c.get_gid() == str(x):
-                c.remove()
-        self.canvas.draw()
-    
-    def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min, self.app.x_max])
-        self.canvas.draw()
 
-    def clear_plot(self):
-        self.axes.cla()
-        self.canvas.draw()
-
-    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
-        self.axes.set_facecolor(color)
-        self.canvas.draw()
-
-
-class View4():
+class View4(View):
     def __init__(self, parent:App) -> None:
         self.app = parent
 
@@ -1415,31 +1377,9 @@ class View4():
 
             # -- draw graph --
             self.canvas.draw()
-    
-    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
-        self.axes.axvline(x=x, color=color, gid=str(x))
-        self.canvas.draw()
-    
-    def delete_bar(self, x:Union[int,float]) -> None:
-        for c in self.axes.lines:
-            if c.get_gid() == str(x):
-                c.remove()
-        self.canvas.draw()
-    
-    def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min, self.app.x_max])
-        self.canvas.draw()
-
-    def clear_plot(self):
-        self.axes.cla()
-        self.canvas.draw()
-
-    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
-        self.axes.set_facecolor(color)
-        self.canvas.draw()
 
 
-class View5():
+class View5(View):
     def __init__(self, parent:App) -> None:
         self.app = parent
 
@@ -1479,28 +1419,6 @@ class View5():
 
             # -- draw graph --
             self.canvas.draw()
-
-    def insert_bar(self, x:Union[int,float], color:str='red') -> None:
-        self.axes.axvline(x=x, color=color, gid=str(x))
-        self.canvas.draw()
-    
-    def delete_bar(self, x:Union[int,float]) -> None:
-        for c in self.axes.lines:
-            if c.get_gid() == str(x):
-                c.remove()
-        self.canvas.draw()
-    
-    def reload_axis(self):
-        self.axes.set_xlim([self.app.x_min, self.app.x_max])
-        self.canvas.draw()
-
-    def clear_plot(self):
-        self.axes.cla()
-        self.canvas.draw()
-
-    def set_bg_color(self, color=(1.0, 1.0, 1.0)):
-        self.axes.set_facecolor(color)
-        self.canvas.draw()
 
 
 # -------------------------------------------------------------------
