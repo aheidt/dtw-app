@@ -230,6 +230,9 @@ class MenuBar(tk.Menu):
         self.volume = tk.IntVar()
         self.volume.set(value=100)
 
+        # self.needle_interval = tk.DoubleVar()
+        # self.needle_interval.set(value=0.2)
+
         playmenu = tk.Menu(menubar, tearoff=0)
         playmenu.add_command(label="Play", command=self.play, accelerator="F9")
         playmenu.add_command(label="Pause/Continue", command=self.pause, accelerator="Space")
@@ -1743,6 +1746,8 @@ class MusicPlayer():
         self.slider_pos_last:Optional[float] = None # last position of the track progression slider in the wave plot in seconds
         self.override_time:bool = False          # ugly variable to circumvent a bug
 
+        self.start_pos:Union[int,float] = 60     # position where we want to start playing back the track
+
         # -- init music --
         mixer.init()
         self.load_track()
@@ -1775,9 +1780,7 @@ class MusicPlayer():
     def get_track_len(self) -> None:
         if self.app.menubar.track.get() == 1:
             if self.app.data_1.filename:
-                if self.app.data_1.filename.endswith(".mp3"):
-                    self.track_length = MP3(self.app.data_1.filename).info.length
-                elif self.app.data_1.filename.endswith(".wav") or self.app.data_1.filename.endswith(".ogg"):
+                if self.app.data_1.filename[-4:] in [".mp3", ".wav", ".ogg"]:
                     self.track_length = mixer.Sound(self.app.data_1.filename).get_length()
                 else:
                     print("get_track_len only supports mp3, wav and ogg")
@@ -1786,9 +1789,7 @@ class MusicPlayer():
                 print("No music file to get length of")
         elif self.app.menubar.track.get() == 2:
             if self.app.data_2.filename:
-                if self.app.data_2.filename.endswith(".mp3"):
-                    self.track_length = MP3(self.app.data_2.filename).info.length
-                elif self.app.data_2.filename.endswith(".wav") or self.app.data_1.filename.endswith(".ogg"):
+                if self.app.data_2.filename[-4:] in [".mp3", ".wav", ".ogg"]:
                     self.track_length = mixer.Sound(self.app.data_2.filename).get_length()
                 else:
                     print("get_track_len only supports mp3, wav and ogg")
@@ -1800,7 +1801,7 @@ class MusicPlayer():
     
     def play(self) -> None:
         if self.track_loaded is True:
-            mixer.music.play()
+            mixer.music.play(start=self.start_pos) # Note: you can only start at a different position with mp3 & ogg files, NOT with wav files !!
             self.play_button_pressed = True
             self.playing_state = True
             self.playing()
@@ -1823,14 +1824,14 @@ class MusicPlayer():
         # -- set position of last slider position --
         self.slider_pos_last = self.slider_pos
         if self.slider_pos_last is None:
-            self.slider_pos_last = 0
+            self.slider_pos_last = self.start_pos
         
         # -- set position of current slider position --
         current_time = mixer.music.get_pos() / 1000 # seconds
         if self.override_time is True:
             self.slider_pos = self.slider_pos_last
         else:
-            self.slider_pos = current_time
+            self.slider_pos = current_time + self.start_pos
         self.override_time = False
 
         # -- exit function if track is over --
