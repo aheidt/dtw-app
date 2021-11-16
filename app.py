@@ -14,6 +14,8 @@ import os
 from typing import List, Optional, Tuple, Union
 import pickle
 from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
 
 # -- plotting --
 import matplotlib.pyplot as plt
@@ -35,6 +37,9 @@ from scipy.interpolate.interpolate import interp1d
 # -- custom --
 from dtw import DTW, MidiIO
 
+# -- Settings --
+LOAD_SAMPLE_ON_START:bool = False
+
 
 # -------------------------------------------------------------------
 # APP
@@ -49,8 +54,8 @@ class App(tk.Tk):
         # -------------------------------------------------
 
         # -- init constants --
-        self.downsampling_factor_1:int = 5 # only plot every N-th data point from .wav for performance reasons
-        self.downsampling_factor_2:int = 40 # only plot every N-th data point from .wav for performance reasons
+        self.downsampling_factor_1:int = 5 # only plot every N-th data point from .mp3 for performance reasons
+        self.downsampling_factor_2:int = 40 # only plot every N-th data point from .mp3 for performance reasons
 
         # -- init data containers --
         self.bars   = Bars(self)
@@ -64,7 +69,8 @@ class App(tk.Tk):
         self.project_data = ProjectData(self)
 
         # -- load sample data --
-        self.project_data.load_demo()
+        if LOAD_SAMPLE_ON_START is True:
+            self.project_data.load_demo()
 
         # -- dtw object --
         # self.dtw_obj = DTW()
@@ -93,12 +99,13 @@ class App(tk.Tk):
         self.view_3 = View3(self)
 
         # -- plot sample data --
-        self.reset_bounds()
-        self.view_1.get_plot()
-        self.view_2.get_plot()
-        self.view_3.get_plot()
-        self.view_4.get_plot()
-        self.view_5.get_plot()
+        if LOAD_SAMPLE_ON_START is True:
+            self.reset_bounds()
+            self.view_1.get_plot()
+            self.view_2.get_plot()
+            self.view_3.get_plot()
+            self.view_4.get_plot()
+            self.view_5.get_plot()
 
         # -------------------------------------------------
         # EVENTS (controller)
@@ -114,6 +121,9 @@ class App(tk.Tk):
 
         # -- init musicplayer --
         self.mp = MusicPlayer(self)
+        
+        if LOAD_SAMPLE_ON_START is True:
+            self.mp.load_track()
 
     # -- MISC ---------------------------------------------
 
@@ -174,8 +184,8 @@ class MenuBar(tk.Menu):
         filemenu.add_command(label="Save Project as...", command=self.save_project_as, accelerator=None)
         filemenu.add_command(label="Save Project", command=self.save_project, accelerator="Ctrl+S")
         filemenu.add_separator()
-        filemenu.add_command(label="Open .wav (Original)", command=self.on_open_wav_original, accelerator="Ctrl+I")
-        filemenu.add_command(label="Open .wav (from MIDI)", command=self.on_open_wav_from_midi, accelerator="Ctrl+K")
+        filemenu.add_command(label="Open .mp3 (Original)", command=self.on_open_mp3_original, accelerator="Ctrl+I")
+        filemenu.add_command(label="Open .mp3 (from MIDI)", command=self.on_open_mp3_from_midi, accelerator="Ctrl+K")
         filemenu.add_command(label="Open .midi", command=self.on_open_midi, accelerator="Ctrl+M")
         filemenu.add_separator()
         filemenu.add_command(label="Export .midi", command=self.on_save_midi, accelerator="Ctrl+E")
@@ -339,15 +349,15 @@ class MenuBar(tk.Menu):
 
     # ---------------------------------------------------------------
 
-    def on_open_wav_original(self) -> None:
+    def on_open_mp3_original(self) -> None:
         # -- load dataset --
-        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
+        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("mp3 files","*.mp3;"),("wav files","*.wav;"),("All files","*.*")))
         
         if filename == "":
-            print("Cancelled opening original wav file")
+            print("Cancelled opening original mp3 file")
             return None
         
-        print("Loading wav file...")
+        print("Loading mp3 file...")
         self.app.data_1.load_file(filename)
         
         print("Computing chroma features...")
@@ -369,15 +379,15 @@ class MenuBar(tk.Menu):
         if self.track.get() == 1:
             self.app.mp.load_track()
 
-    def on_open_wav_from_midi(self) -> None:
+    def on_open_mp3_from_midi(self) -> None:
         # -- load dataset --
-        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("wav files","*.wav;"),("All files","*.*")))
+        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("mp3 files","*.mp3;"),("wav files","*.wav;"),("All files","*.*")))
         
         if filename == "":
-            print("Cancelled opening wav from midi")
+            print("Cancelled opening mp3 from midi")
             return None
         
-        print("Loading wav file...")
+        print("Loading mp3 file...")
         self.app.data_2.load_file(filename)
 
         print("Computing chroma features...")
@@ -458,7 +468,7 @@ class MenuBar(tk.Menu):
         print("Remapping midi...")
         self.app.data_3.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_3.df_midi["time abs (sec)"]]
         
-        print("Remapping wav...")
+        print("Remapping mp3...")
         self.app.data_2.x_sm = [self.app.dtw_obj.f(x) for x in self.app.data_2.x_sm]
 
         print("Remapping chroma features...")
@@ -627,10 +637,10 @@ class MenuBar(tk.Menu):
     # ---------------------------------------------------------------
 
     def ctrl_i(self, event) -> None:
-        self.on_open_wav_original()
+        self.on_open_mp3_original()
 
     def ctrl_k(self, event) -> None:
-        self.on_open_wav_from_midi()
+        self.on_open_mp3_from_midi()
 
     def ctrl_m(self, event) -> None:
         self.on_open_midi()
@@ -973,7 +983,7 @@ class Data1():
     def load_file(self, filename) -> None:
         self.filename = filename
         try:
-            # -- load wav --
+            # -- load mp3 --
             self.y, self.fs = librosa.load(self.filename)
 
             # -- convert time to seconds for x axis--
@@ -1009,7 +1019,7 @@ class Data2():
     def load_file(self, filename) -> None:
         self.filename = filename
         try:
-            # -- load wav --
+            # -- load mp3 --
             self.y, self.fs = librosa.load(self.filename)
 
             # -- convert time to seconds for x axis--
@@ -1229,6 +1239,7 @@ class View1(View):
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
+        self.axes.grid(axis="x")
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
@@ -1259,6 +1270,7 @@ class View2(View):
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
+        self.axes.grid(axis="x")
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
@@ -1292,6 +1304,8 @@ class View3(View):
 
         # -- adjust axes style --
         self.axes.grid(axis="x")
+        self.axes.set_yticklabels([])
+        self.axes.set_xticklabels([])
         self.figure.subplots_adjust(left=0.0, bottom=0.16, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
@@ -1354,9 +1368,9 @@ class View4(View):
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
+        self.axes.grid(axis="x")
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
-        self.axes.grid(axis="x")
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
@@ -1392,9 +1406,9 @@ class View5(View):
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
+        self.axes.grid(axis="x")
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
-        self.axes.grid(axis="x")
         self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
@@ -1668,7 +1682,6 @@ class MusicPlayer():
 
         # -- init music --
         mixer.init()
-        self.load_track()
 
     def load_track(self) -> None:
         # -- clean up previous track --
