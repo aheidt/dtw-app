@@ -26,7 +26,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # -- music player --
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'True'
 from pygame import mixer
-from mutagen.mp3 import MP3
 
 # -- dtw --
 import librosa
@@ -94,9 +93,9 @@ class App(tk.Tk):
         # -- init views --
         self.view_1 = View1(self)
         self.view_2 = View2(self)
+        self.view_3 = View3(self)
         self.view_4 = View4(self)
         self.view_5 = View5(self)
-        self.view_3 = View3(self)
 
         # -- plot sample data --
         if LOAD_SAMPLE_ON_START is True:
@@ -139,7 +138,7 @@ class App(tk.Tk):
             x2 = 0
         
         try:
-            x3 = self.data_3.df_midi["time abs (sec)"][-1:].item()
+            x3 = self.data_5.df_midi["time abs (sec)"][-1:].item()
         except Exception:
             x3 = 0
 
@@ -290,9 +289,9 @@ class MenuBar(tk.Menu):
         self.app.reset_bounds()
         self.app.view_1.get_plot()
         self.app.view_2.get_plot()
+        self.app.view_5.get_plot()
         self.app.view_3.get_plot()
         self.app.view_4.get_plot()
-        self.app.view_5.get_plot()
 
     def restart(self) -> None:
         self.app.destroy()
@@ -315,9 +314,9 @@ class MenuBar(tk.Menu):
         # -- update graphs --
         self.app.view_1.get_plot()
         self.app.view_2.get_plot()
+        self.app.view_5.get_plot()
         self.app.view_3.get_plot()
         self.app.view_4.get_plot()
-        self.app.view_5.get_plot()
 
         # -- load audiofile --
         try:
@@ -361,7 +360,7 @@ class MenuBar(tk.Menu):
         self.app.data_1.load_file(filename)
         
         print("Computing chroma features...")
-        self.app.data_4.load_chroma_features()
+        self.app.data_3.load_chroma_features()
         
         print("Done")
 
@@ -371,9 +370,9 @@ class MenuBar(tk.Menu):
         # -- update graphs --
         self.app.view_1.get_plot()
         self.app.view_2.reload_axis()
-        self.app.view_3.reload_axis()
-        self.app.view_4.get_plot()
         self.app.view_5.reload_axis()
+        self.app.view_3.get_plot()
+        self.app.view_4.reload_axis()
 
         # -- load audiofile --
         if self.track.get() == 1:
@@ -391,7 +390,7 @@ class MenuBar(tk.Menu):
         self.app.data_2.load_file(filename)
 
         print("Computing chroma features...")
-        self.app.data_5.load_chroma_features()
+        self.app.data_4.load_chroma_features()
         
         print("Done")
         
@@ -401,9 +400,9 @@ class MenuBar(tk.Menu):
         # -- update graphs --
         self.app.view_1.reload_axis()
         self.app.view_2.get_plot()
+        self.app.view_5.reload_axis()
         self.app.view_3.reload_axis()
-        self.app.view_4.reload_axis()
-        self.app.view_5.get_plot()
+        self.app.view_4.get_plot()
 
         # -- load audiofile --
         if self.track.get() == 2:
@@ -417,7 +416,7 @@ class MenuBar(tk.Menu):
             print("Cancelled opening midi file")
             return None
         
-        self.app.data_3.load_file(filename)
+        self.app.data_5.load_file(filename)
 
         # -- reset graph limits --
         self.app.reset_bounds()
@@ -425,22 +424,22 @@ class MenuBar(tk.Menu):
         # -- update graphs --
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
-        self.app.view_3.get_plot()
+        self.app.view_5.get_plot()
+        self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
-        self.app.view_5.reload_axis()
 
     # ---------------------------------------------------------------
 
     def on_save_midi(self) -> None:
-        self.app.data_3.outfile = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
-        if self.app.data_3.outfile == "":
+        self.app.data_5.outfile = filedialog.asksaveasfilename(initialdir="/", title="Save as", filetypes=(("MIDI files","*.mid;*.MID"),("All files","*.*")))
+        if self.app.data_5.outfile == "":
             print("Cancelled saving midi file")
             return None
         
-        if self.app.data_3.outfile.endswith((".mid", ".MID")) is False:
-            self.app.data_3.outfile += ".mid"
-        MidiIO.export_midi(df_midi=self.app.data_3.df_midi, outfile=self.app.data_3.outfile, time_colname="time abs (sec)")
-        print(f"Saved midi file to: {self.app.data_3.outfile}")
+        if self.app.data_5.outfile.endswith((".mid", ".MID")) is False:
+            self.app.data_5.outfile += ".mid"
+        MidiIO.export_midi(df_midi=self.app.data_5.df_midi, outfile=self.app.data_5.outfile, time_colname="time abs (sec)")
+        print(f"Saved midi file to: {self.app.data_5.outfile}")
 
     # ---------------------------------------------------------------
 
@@ -455,8 +454,8 @@ class MenuBar(tk.Menu):
         
         print("Computing chroma features...")
         # self.app.dtw_obj.compute_chroma_features()
-        self.app.dtw_obj.x_chroma = self.app.data_4.chroma
-        self.app.dtw_obj.y_chroma = self.app.data_5.chroma
+        self.app.dtw_obj.x_chroma = self.app.data_3.chroma
+        self.app.dtw_obj.y_chroma = self.app.data_4.chroma
         
         print("Computing DTW...")
         self.app.dtw_obj.compute_dtw()
@@ -466,28 +465,28 @@ class MenuBar(tk.Menu):
 
         # -- apply DTW time mappings --
         print("Remapping midi...")
-        self.app.data_3.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_3.df_midi["time abs (sec)"]]
+        self.app.data_5.df_midi["time abs (sec)"] = [self.app.dtw_obj.f(x) for x in self.app.data_5.df_midi["time abs (sec)"]]
         
         print("Remapping mp3...")
         self.app.data_2.x_sm = [self.app.dtw_obj.f(x) for x in self.app.data_2.x_sm]
 
         print("Remapping chroma features...")
-        self.app.data_5.x = [self.app.dtw_obj.f(x) for x in self.app.data_5.x]
+        self.app.data_4.x = [self.app.dtw_obj.f(x) for x in self.app.data_4.x]
 
         # -- draw graphs --
         print("Redrawing graphs")
         self.app.view_2.get_plot()
-        self.app.view_3.get_plot()
         self.app.view_5.get_plot()
+        self.app.view_4.get_plot()
 
         # -- trigger axis adjustment --
         print("Resetting axis")
         self.app.reset_bounds()
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
+        self.app.view_5.reload_axis()
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
-        self.app.view_5.reload_axis()
 
         print("Done")
 
@@ -512,9 +511,9 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
+        self.app.view_5.reload_axis()
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
-        self.app.view_5.reload_axis()
 
     def zoom_out(self) -> None:
         # -- adjust x axis limits --
@@ -539,9 +538,9 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
+        self.app.view_5.reload_axis()
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
-        self.app.view_5.reload_axis()
 
     def scroll_right(self) -> None:
         # -- adjust x axis limits --
@@ -561,9 +560,9 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
+        self.app.view_5.reload_axis()
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
-        self.app.view_5.reload_axis()
 
     def scroll_left(self) -> None:
         # -- adjust x axis limits --
@@ -583,9 +582,9 @@ class MenuBar(tk.Menu):
         # -- trigger axis adjustment --
         self.app.view_1.reload_axis()
         self.app.view_2.reload_axis()
+        self.app.view_5.reload_axis()
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
-        self.app.view_5.reload_axis()
 
     # -- PLAY -------------------------------------------------------
 
@@ -708,7 +707,7 @@ class MenuBar(tk.Menu):
 # -------------------------------------------------------------------
 
 class ProjectData():
-    """Packages the data of Data1, Data2 and Data3 into a .data file and vice versa."""
+    """Packages the data of Data1, Data2 and Data5 into a .data file and vice versa."""
     def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
@@ -734,9 +733,9 @@ class ProjectData():
         bars   = data["bars"]
         data_1 = data["data_1"]
         data_2 = data["data_2"]
+        data_5 = data["data_5"]
         data_3 = data["data_3"]
         data_4 = data["data_4"]
-        data_5 = data["data_5"]
 
         # -- bars --
         self.app.bars.bars       = bars["bars"]
@@ -757,10 +756,17 @@ class ProjectData():
         self.app.data_2.y_sm     = data_2["y_sm"]
         self.app.data_2.fs       = data_2["fs"]
 
+        # -- data_5 --
+        self.app.data_5.filename = data_5["filename"]
+        self.app.data_5.outfile  = data_5["outfile"]
+        self.app.data_5.df_midi  = data_5["df_midi"]
+
         # -- data_3 --
-        self.app.data_3.filename = data_3["filename"]
-        self.app.data_3.outfile  = data_3["outfile"]
-        self.app.data_3.df_midi  = data_3["df_midi"]
+        self.app.data_3.chroma     = data_3["chroma"]
+        self.app.data_3.x          = data_3["x"]
+        self.app.data_3.y          = data_3["y"]
+        self.app.data_3.fs         = data_3["fs"]
+        self.app.data_3.hop_length = data_3["hop_length"]
 
         # -- data_4 --
         self.app.data_4.chroma     = data_4["chroma"]
@@ -768,13 +774,6 @@ class ProjectData():
         self.app.data_4.y          = data_4["y"]
         self.app.data_4.fs         = data_4["fs"]
         self.app.data_4.hop_length = data_4["hop_length"]
-
-        # -- data_5 --
-        self.app.data_5.chroma     = data_5["chroma"]
-        self.app.data_5.x          = data_5["x"]
-        self.app.data_5.y          = data_5["y"]
-        self.app.data_5.fs         = data_5["fs"]
-        self.app.data_5.hop_length = data_5["hop_length"]
 
     def save_file(self, filename:str) -> None:
         # -- datasets --
@@ -794,10 +793,17 @@ class ProjectData():
             "y_sm": self.app.data_2.y_sm,
             "fs": self.app.data_2.fs,
         }
+        data_5 = {
+            "filename": self.app.data_5.filename,
+            "outfile": self.app.data_5.outfile,
+            "df_midi": self.app.data_5.df_midi,
+        }
         data_3 = {
-            "filename": self.app.data_3.filename,
-            "outfile": self.app.data_3.outfile,
-            "df_midi": self.app.data_3.df_midi,
+            "chroma": self.app.data_3.chroma,
+            "x": self.app.data_3.x,
+            "y": self.app.data_3.y,
+            "fs": self.app.data_3.fs,
+            "hop_length": self.app.data_3.hop_length,
         }
         data_4 = {
             "chroma": self.app.data_4.chroma,
@@ -805,13 +811,6 @@ class ProjectData():
             "y": self.app.data_4.y,
             "fs": self.app.data_4.fs,
             "hop_length": self.app.data_4.hop_length,
-        }
-        data_5 = {
-            "chroma": self.app.data_5.chroma,
-            "x": self.app.data_5.x,
-            "y": self.app.data_5.y,
-            "fs": self.app.data_5.fs,
-            "hop_length": self.app.data_5.hop_length,
         }
         bars = {
             "bars": self.app.bars.bars,
@@ -828,9 +827,9 @@ class ProjectData():
             "bars": bars,
             "data_1": data_1,
             "data_2": data_2,
+            "data_5": data_5,
             "data_3": data_3,
             "data_4": data_4,
-            "data_5": data_5,
         }
 
         # -- adjust filename --
@@ -851,7 +850,7 @@ class Bars():
         self.app = parent
 
         # -- edit memory --
-        self.bars:List[Optional[Union[int,float]]] = [] # keep in synch with the bars of Data3 !!
+        self.bars:List[Optional[Union[int,float]]] = [] # keep in synch with the bars of Data5 !!
         # make it a list of tuples, the second item in the tuple is the color
 
     # -- edit bar dataset -------------------------------------------
@@ -1069,56 +1068,6 @@ class Data3():
         # -- init parent --
         self.app = parent
 
-        # -- data source --
-        self.filename:Optional[str] = None
-        self.outfile:Optional[str] = None
-
-        # -- init dataset --
-        self.df_midi:pd.DataFrame = pd.DataFrame()
-
-    # -- load from file ---------------------------------------------
-
-    def load_file(self, filename) -> None:
-        self.filename = filename
-        try:
-            # -- load midi --
-            self.df_midi = MidiIO.midi_to_df(file_midi=self.filename, clip_t0=False)
-        except Exception as e:
-            messagebox.showerror("Error Message", f"Could not load file: {self.filename}, because: {repr(e)}")
-
-    # -- alter time series ------------------------------------------
-
-    def apply_dtw_from_bars(self, x_from:Union[int,float], x_to:Union[int,float], x_min_glob:Union[int,float], x_max_glob:Union[int,float]) -> None:
-        """
-            Args:
-                x_from (int,float): previous position of the bar
-                x_to (int,float): new position of the bar
-                x_min_glob (int,float): this is the position of the closest bar to the left, relative to x_from and x_to
-                x_max_glob (int,float): this is the position of the closest bar to the right, relative to x_from and x_to
-        """
-        # -- define mappings --
-        # x:       time (sec)
-        # f(x), y: time (sec) remapped
-        x = [self.app.x_min_glob] + self.app.bars.bars + [self.app.x_max_glob] + [x_from]
-        y = [self.app.x_min_glob] + self.app.bars.bars + [self.app.x_max_glob] + [x_to]
-        x = np.array(x)
-        y = np.array(y)
-
-        # -- interpolation methods --
-        f = interp1d(x, y, fill_value='extrapolate')
-
-        # -- update data -- (only update data within the relevant range!)
-        idx_start = np.searchsorted(self.df_midi["time abs (sec)"], x_min_glob)
-        idx_end = np.searchsorted(self.df_midi["time abs (sec)"], x_max_glob)
-
-        self.df_midi.loc[idx_start:idx_end,"time abs (sec)"] = [f(x) for x in self.df_midi.loc[idx_start:idx_end,"time abs (sec)"]]
-
-
-class Data4():
-    def __init__(self, parent:App) -> None:
-        # -- init parent --
-        self.app = parent
-
         # -- init dataset --
         self.chroma = None
         self.x = None
@@ -1140,7 +1089,7 @@ class Data4():
         self.x = librosa.frames_to_time(np.arange(x_num_steps + 1), sr=self.fs, hop_length=self.hop_length)
 
 
-class Data5():
+class Data4():
     def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
@@ -1193,6 +1142,56 @@ class Data5():
         idx_end = np.searchsorted(data, x_max_glob)
 
         self.x[idx_start:idx_end] = [f(x) for x in data[idx_start:idx_end]]
+
+
+class Data5():
+    def __init__(self, parent:App) -> None:
+        # -- init parent --
+        self.app = parent
+
+        # -- data source --
+        self.filename:Optional[str] = None
+        self.outfile:Optional[str] = None
+
+        # -- init dataset --
+        self.df_midi:pd.DataFrame = pd.DataFrame()
+
+    # -- load from file ---------------------------------------------
+
+    def load_file(self, filename) -> None:
+        self.filename = filename
+        try:
+            # -- load midi --
+            self.df_midi = MidiIO.midi_to_df(file_midi=self.filename, clip_t0=False)
+        except Exception as e:
+            messagebox.showerror("Error Message", f"Could not load file: {self.filename}, because: {repr(e)}")
+
+    # -- alter time series ------------------------------------------
+
+    def apply_dtw_from_bars(self, x_from:Union[int,float], x_to:Union[int,float], x_min_glob:Union[int,float], x_max_glob:Union[int,float]) -> None:
+        """
+            Args:
+                x_from (int,float): previous position of the bar
+                x_to (int,float): new position of the bar
+                x_min_glob (int,float): this is the position of the closest bar to the left, relative to x_from and x_to
+                x_max_glob (int,float): this is the position of the closest bar to the right, relative to x_from and x_to
+        """
+        # -- define mappings --
+        # x:       time (sec)
+        # f(x), y: time (sec) remapped
+        x = [self.app.x_min_glob] + self.app.bars.bars + [self.app.x_max_glob] + [x_from]
+        y = [self.app.x_min_glob] + self.app.bars.bars + [self.app.x_max_glob] + [x_to]
+        x = np.array(x)
+        y = np.array(y)
+
+        # -- interpolation methods --
+        f = interp1d(x, y, fill_value='extrapolate')
+
+        # -- update data -- (only update data within the relevant range!)
+        idx_start = np.searchsorted(self.df_midi["time abs (sec)"], x_min_glob)
+        idx_end = np.searchsorted(self.df_midi["time abs (sec)"], x_max_glob)
+
+        self.df_midi.loc[idx_start:idx_end,"time abs (sec)"] = [f(x) for x in self.df_midi.loc[idx_start:idx_end,"time abs (sec)"]]
 
 
 # -------------------------------------------------------------------
@@ -1299,60 +1298,33 @@ class View3(View):
         self.frame.pack(sid="top", fill='x')
 
         # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1.4), dpi=100)
+        self.figure = plt.Figure(figsize=(6,1), dpi=100)
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
         self.axes.grid(axis="x")
         self.axes.set_yticklabels([])
         self.axes.set_xticklabels([])
-        self.figure.subplots_adjust(left=0.0, bottom=0.16, right=1.0, top=1.0, wspace=None, hspace=None)
+        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-    def get_plot(self):
-        # -- clear plot --
-        self.axes.cla()
-
-        # -- init variables --
-        segs = []
-        colors = []
-        notes = self.app.data_3.df_midi["note"].unique()
-
-        # -- create colormap --
-        my_cmap = plt.get_cmap('viridis')
-        norm = Normalize(vmin=0, vmax=127)
         
-        # Note: We are running into trouble if note on & note off events don't perfectly alternate for a given pitch. 
-        #       Unlikely to happen for piano music though.
-        for note in notes:
-            df_note = self.app.data_3.df_midi.where(self.app.data_3.df_midi["note"] == note).dropna()
-            x1, x2, y1, y2, velocity = [None, None, note, note, None]
-            for idx, row in df_note.iterrows():
-                if row["type"] == "note_on":
-                    x1 = row["time abs (sec)"]
-                    velocity = row["velocity"]
-                elif row["type"] == "note_off":
-                    x2 = row["time abs (sec)"]
-                    if x1 is not None:
-                        segs.append(((x1, y1), (x2, y2)))
-                        colors.append(my_cmap(norm(velocity)))
-                        x1 = None
-                        x2 = None
-                else:
-                    continue
+    def get_plot(self):
+        if self.app.data_3.chroma is not None:
+            # -- clear plot --
+            self.axes.cla()
 
-        ln_coll = matplotlib.collections.LineCollection(segs, colors=colors)
+            # -- create plot --
+            self.axes.pcolormesh(self.app.data_3.x, self.app.data_3.y, self.app.data_3.chroma, shading='auto')
 
-        self.axes.add_collection(ln_coll)
-        self.axes.set_xlim([self.app.x_min, self.app.x_max])
-        self.axes.set_ylim(min(notes)-1, max(notes)+1)
-        self.axes.grid(axis="x")
-        for x in self.app.bars.bars:
-            self.axes.axvline(x=x, color='red', gid=str(x))
-        self.canvas.draw()
+            # -- adjust axis style --
+            self.axes.set_xlim([self.app.x_min, self.app.x_max])
+            self.axes.grid(axis="x")
+
+            # -- draw graph --
+            self.canvas.draw()
 
 
 class View4(View):
@@ -1389,6 +1361,10 @@ class View4(View):
             self.axes.set_xlim([self.app.x_min, self.app.x_max])
             self.axes.grid(axis="x")
 
+            # -- add bars --
+            for x in self.app.bars.bars:
+                self.axes.axvline(x=x, color='red', gid=str(x))
+
             # -- draw graph --
             self.canvas.draw()
 
@@ -1402,37 +1378,60 @@ class View5(View):
         self.frame.pack(sid="top", fill='x')
 
         # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1), dpi=100)
+        self.figure = plt.Figure(figsize=(6,1.4), dpi=100)
         self.axes = self.figure.add_subplot()
 
         # -- adjust axes style --
         self.axes.grid(axis="x")
-        self.axes.set_yticklabels([])
-        self.axes.set_xticklabels([])
-        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
+        # self.axes.set_yticklabels([])
+        # self.axes.set_xticklabels([])
+        self.figure.subplots_adjust(left=0.0, bottom=0.16, right=1.0, top=1.0, wspace=None, hspace=None)
 
         # -- init canvas --
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        
+
     def get_plot(self):
-        if self.app.data_5.chroma is not None:
-            # -- clear plot --
-            self.axes.cla()
+        # -- clear plot --
+        self.axes.cla()
 
-            # -- create plot --
-            self.axes.pcolormesh(self.app.data_5.x, self.app.data_5.y, self.app.data_5.chroma, shading='auto')
+        # -- init variables --
+        segs = []
+        colors = []
+        notes = self.app.data_5.df_midi["note"].unique()
 
-            # -- adjust axis style --
-            self.axes.set_xlim([self.app.x_min, self.app.x_max])
-            self.axes.grid(axis="x")
+        # -- create colormap --
+        my_cmap = plt.get_cmap('viridis')
+        norm = Normalize(vmin=0, vmax=127)
+        
+        # Note: We are running into trouble if note on & note off events don't perfectly alternate for a given pitch. 
+        #       Unlikely to happen for piano music though.
+        for note in notes:
+            df_note = self.app.data_5.df_midi.where(self.app.data_5.df_midi["note"] == note).dropna()
+            x1, x2, y1, y2, velocity = [None, None, note, note, None]
+            for idx, row in df_note.iterrows():
+                if row["type"] == "note_on":
+                    x1 = row["time abs (sec)"]
+                    velocity = row["velocity"]
+                elif row["type"] == "note_off":
+                    x2 = row["time abs (sec)"]
+                    if x1 is not None:
+                        segs.append(((x1, y1), (x2, y2)))
+                        colors.append(my_cmap(norm(velocity)))
+                        x1 = None
+                        x2 = None
+                else:
+                    continue
 
-            # -- add bars --
-            for x in self.app.bars.bars:
-                self.axes.axvline(x=x, color='red', gid=str(x))
+        ln_coll = matplotlib.collections.LineCollection(segs, colors=colors)
 
-            # -- draw graph --
-            self.canvas.draw()
+        self.axes.add_collection(ln_coll)
+        self.axes.set_xlim([self.app.x_min, self.app.x_max])
+        self.axes.set_ylim(min(notes)-1, max(notes)+1)
+        self.axes.grid(axis="x")
+        for x in self.app.bars.bars:
+            self.axes.axvline(x=x, color='red', gid=str(x))
+        self.canvas.draw()
 
 
 # -------------------------------------------------------------------
@@ -1458,19 +1457,19 @@ class ClickEvents():
         self.app.view_2.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
         self.app.view_2.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
 
-        # -- mouse click [view_3] --
-        self.app.view_3.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
-        self.app.view_3.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
-
-        self.app.view_3.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
-        self.app.view_3.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
-
         # -- mouse click [view_5] --
         self.app.view_5.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
         self.app.view_5.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
 
         self.app.view_5.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
         self.app.view_5.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
+
+        # -- mouse click [view_4] --
+        self.app.view_4.canvas.get_tk_widget().bind("<Button 1>", self.record_button_1_down)      # left mouse click (down)
+        self.app.view_4.canvas.get_tk_widget().bind("<ButtonRelease-1>", self.record_button_1_up) # left mouse click (up)
+
+        self.app.view_4.canvas.get_tk_widget().bind('<Button-3>', self.record_button_3_down)      # right mouse click (down)
+        self.app.view_4.canvas.get_tk_widget().bind('<ButtonRelease-3>', self.record_button_3_up) # right mouse click (up)
 
     # ---------------------------------------------------------------
     # LEFT MOUSE CLICK
@@ -1496,8 +1495,8 @@ class ClickEvents():
                 self.app.bars.insert_bar(x_pos)
 
                 self.app.view_2.insert_bar(x_pos)
-                self.app.view_3.insert_bar(x_pos)
                 self.app.view_5.insert_bar(x_pos)
+                self.app.view_4.insert_bar(x_pos)
 
                 print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
@@ -1519,18 +1518,18 @@ class ClickEvents():
                     closest_bars = self.app.bars.get_closest_bars(x=x_to)
                     print(f"closest bars to {x_to} are: {closest_bars[0]} and {closest_bars[1]}")
 
-                    # -- update data (bars & time series) [data_2, data_3, data_5] --
+                    # -- update data (bars & time series) [data_2, data_5, data_4] --
                     self.app.data_2.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
-                    self.app.data_3.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
                     self.app.data_5.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
+                    self.app.data_4.apply_dtw_from_bars(x_from=x_from, x_to=x_to, x_min_glob=closest_bars[0], x_max_glob=closest_bars[1])
 
                     # -- insert the new bar --
                     self.app.bars.insert_bar(x_to) # Note: keep this line after 'self.apply_dtw_from_bars' and before 'self.get_plot()' !!
 
                     # -- update graph --
                     self.app.view_2.get_plot()
-                    self.app.view_3.get_plot()
                     self.app.view_5.get_plot()
+                    self.app.view_4.get_plot()
 
                     # -- log message --
                     print("A bar was moved from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
@@ -1582,8 +1581,8 @@ class ClickEvents():
                 self.app.bars.delete_bar(x_bar_pos)
                 
                 self.app.view_2.delete_bar(x_bar_pos)
-                self.app.view_3.delete_bar(x_bar_pos)
                 self.app.view_5.delete_bar(x_bar_pos)
+                self.app.view_4.delete_bar(x_bar_pos)
 
                 print(f"A bar was deleted from: {event.x} {event.y} | {x} | {x_bar_pos}")
         else:
@@ -1607,6 +1606,10 @@ class HoverEvents():
         self.app.view_2.canvas.get_tk_widget().bind("<Enter>", self.view_2_in)  # mouse pointer entered the widget
         self.app.view_2.canvas.get_tk_widget().bind("<Leave>", self.view_2_out) # mouse pointer left the widget
 
+        # -- hover canvas [view_5] --
+        self.app.view_5.canvas.get_tk_widget().bind("<Enter>", self.view_5_in)  # mouse pointer entered the widget
+        self.app.view_5.canvas.get_tk_widget().bind("<Leave>", self.view_5_out) # mouse pointer left the widget
+
         # -- hover canvas [view_3] --
         self.app.view_3.canvas.get_tk_widget().bind("<Enter>", self.view_3_in)  # mouse pointer entered the widget
         self.app.view_3.canvas.get_tk_widget().bind("<Leave>", self.view_3_out) # mouse pointer left the widget
@@ -1614,10 +1617,6 @@ class HoverEvents():
         # -- hover canvas [view_4] --
         self.app.view_4.canvas.get_tk_widget().bind("<Enter>", self.view_4_in)  # mouse pointer entered the widget
         self.app.view_4.canvas.get_tk_widget().bind("<Leave>", self.view_4_out) # mouse pointer left the widget
-
-        # -- hover canvas [view_5] --
-        self.app.view_5.canvas.get_tk_widget().bind("<Enter>", self.view_5_in)  # mouse pointer entered the widget
-        self.app.view_5.canvas.get_tk_widget().bind("<Leave>", self.view_5_out) # mouse pointer left the widget
 
     # ---------------------------------------------------------------
     # HOVER FRAME
@@ -1639,6 +1638,14 @@ class HoverEvents():
 
     # ---------------------------------------------------------------
 
+    def view_5_in(self, event) -> None:
+        self.app.view_5.set_bg_color(color=self.app.hover_color)
+
+    def view_5_out(self, event) -> None:
+        self.app.view_5.set_bg_color(color=(1.0, 1.0, 1.0))
+
+    # ---------------------------------------------------------------
+
     def view_3_in(self, event) -> None:
         self.app.view_3.set_bg_color(color=self.app.hover_color)
 
@@ -1652,14 +1659,6 @@ class HoverEvents():
 
     def view_4_out(self, event) -> None:
         self.app.view_4.set_bg_color(color=(1.0, 1.0, 1.0))
-
-    # ---------------------------------------------------------------
-
-    def view_5_in(self, event) -> None:
-        self.app.view_5.set_bg_color(color=self.app.hover_color)
-
-    def view_5_out(self, event) -> None:
-        self.app.view_5.set_bg_color(color=(1.0, 1.0, 1.0))
 
 
 class MusicPlayer():
