@@ -1,4 +1,18 @@
 # -------------------------------------------------------------------
+# Header
+# -------------------------------------------------------------------
+
+# -- package info --
+__description__:str = "This application helps to align midi files with audio files."
+__author__:str = "Antoine Heidt"
+__license__:str = "All rights reserved."
+__version__:str = "1.2.0" 
+# 1st version number: Major update, changes project data structure & app
+# 2nd version number: Minor update, changes project data structure & app
+# 3rd version number: Minor update, does not change project data structure, only app
+
+
+# -------------------------------------------------------------------
 # Imports
 # -------------------------------------------------------------------
 
@@ -730,12 +744,18 @@ class ProjectData():
             data = pickle.load(filehandle)
         
         # -- unpack data --
-        bars   = data["bars"]
-        data_1 = data["data_1"]
-        data_2 = data["data_2"]
-        data_5 = data["data_5"]
-        data_3 = data["data_3"]
-        data_4 = data["data_4"]
+        settings = data["settings"]
+        bars     = data["bars"]
+        data_1   = data["data_1"]
+        data_2   = data["data_2"]
+        data_3   = data["data_3"]
+        data_4   = data["data_4"]
+        data_5   = data["data_5"]
+
+        # -- check if data meets version requirements --
+        if settings["version"].split(sep=".")[:2] != __version__.split(sep=".")[:2]:
+            raise IOError("Couldn't load project, incompatible versions (data: {data_version}, app: {app_version})".format(
+                data_version=settings["version"], app_version=__version__))
 
         # -- bars --
         self.app.bars.bars       = bars["bars"]
@@ -756,11 +776,6 @@ class ProjectData():
         self.app.data_2.y_sm     = data_2["y_sm"]
         self.app.data_2.fs       = data_2["fs"]
 
-        # -- data_5 --
-        self.app.data_5.filename = data_5["filename"]
-        self.app.data_5.outfile  = data_5["outfile"]
-        self.app.data_5.df_midi  = data_5["df_midi"]
-
         # -- data_3 --
         self.app.data_3.chroma     = data_3["chroma"]
         self.app.data_3.x          = data_3["x"]
@@ -774,6 +789,11 @@ class ProjectData():
         self.app.data_4.y          = data_4["y"]
         self.app.data_4.fs         = data_4["fs"]
         self.app.data_4.hop_length = data_4["hop_length"]
+
+        # -- data_5 --
+        self.app.data_5.filename = data_5["filename"]
+        self.app.data_5.outfile  = data_5["outfile"]
+        self.app.data_5.df_midi  = data_5["df_midi"]
 
     def save_file(self, filename:str) -> None:
         # -- datasets --
@@ -793,11 +813,6 @@ class ProjectData():
             "y_sm": self.app.data_2.y_sm,
             "fs": self.app.data_2.fs,
         }
-        data_5 = {
-            "filename": self.app.data_5.filename,
-            "outfile": self.app.data_5.outfile,
-            "df_midi": self.app.data_5.df_midi,
-        }
         data_3 = {
             "chroma": self.app.data_3.chroma,
             "x": self.app.data_3.x,
@@ -812,13 +827,18 @@ class ProjectData():
             "fs": self.app.data_4.fs,
             "hop_length": self.app.data_4.hop_length,
         }
+        data_5 = {
+            "filename": self.app.data_5.filename,
+            "outfile": self.app.data_5.outfile,
+            "df_midi": self.app.data_5.df_midi,
+        }
         bars = {
             "bars": self.app.bars.bars,
         }
 
         # -- miscellaneous data --
         settings = {
-            "version": "1.1.0",
+            "version": __version__,
         }
 
         # -- bundle data --
@@ -827,9 +847,9 @@ class ProjectData():
             "bars": bars,
             "data_1": data_1,
             "data_2": data_2,
-            "data_5": data_5,
             "data_3": data_3,
             "data_4": data_4,
+            "data_5": data_5,
         }
 
         # -- adjust filename --
