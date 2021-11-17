@@ -67,8 +67,8 @@ class App(tk.Tk):
         # -------------------------------------------------
 
         # -- init constants --
-        self.downsampling_factor_1:int = 5 # only plot every N-th data point from .mp3 for performance reasons
-        self.downsampling_factor_2:int = 40 # only plot every N-th data point from .mp3 for performance reasons
+        self.downsampling_factor_1:int = 150 # only plot every N-th data point from .mp3 for performance reasons
+        self.downsampling_factor_2:int = 200 # only plot every N-th data point from .mp3 for performance reasons
 
         # -- init data containers --
         self.bars_1 = Bars1(self)
@@ -226,6 +226,10 @@ class MenuBar(tk.Menu):
         dtwmenu.add_command(label="show chroma features", command=self.show_chroma_features, accelerator="F2")
         dtwmenu.add_command(label="show dtw mappings", command=self.show_dtw_mappings, accelerator="F3")
         dtwmenu.add_command(label="show remap function", command=self.show_remap_function, accelerator="F4")
+        dtwmenu.add_separator()
+        dtwmenu.add_command(label="reset bars (track 1)", command=self.reset_bars_track_1, accelerator=None)
+        dtwmenu.add_command(label="reset bars (track 2)", command=self.reset_bars_track_2, accelerator=None)
+        dtwmenu.add_command(label="reset all bars", command=self.reset_all_bars, accelerator=None)
 
         self.app.bind('<F1>', self.f1)
 
@@ -254,8 +258,8 @@ class MenuBar(tk.Menu):
         self.volume = tk.IntVar()
         self.volume.set(value=100)
 
-        # self.needle_interval = tk.DoubleVar()
-        # self.needle_interval.set(value=0.2)
+        self.start_pos = tk.IntVar()
+        self.start_pos.set(value=0)
 
         playmenu = tk.Menu(menubar, tearoff=0)
         playmenu.add_command(label="Play", command=self.play, accelerator="F9")
@@ -272,6 +276,31 @@ class MenuBar(tk.Menu):
         volume.add_radiobutton(label="75%", value=75, variable=self.volume, command=self.adjust_volume)
         volume.add_radiobutton(label="100%", value=100, variable=self.volume, command=self.adjust_volume)
         playmenu.add_cascade(label="Volume", menu=volume)
+        playmenu.add_separator()
+        start_pos = tk.Menu(playmenu, tearoff=0)
+        start_pos.add_radiobutton(label="0 sec", value=0, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="15 sec", value=15, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="30 sec", value=30, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="45 sec", value=45, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="60 sec", value=60, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="80 sec", value=80, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="100 sec", value=100, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="120 sec", value=120, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="140 sec", value=140, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="160 sec", value=160, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="180 sec", value=180, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="210 sec", value=210, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="240 sec", value=240, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="270 sec", value=270, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="300 sec", value=300, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="360 sec", value=360, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="420 sec", value=420, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="480 sec", value=480, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="540 sec", value=540, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="600 sec", value=600, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="660 sec", value=660, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="720 sec", value=720, variable=self.start_pos, command=self.set_start_pos)
+        playmenu.add_cascade(label="Playback Position", menu=start_pos)
 
         self.app.bind('<space>', self.space)
         self.app.bind('<F9>', self.f9)
@@ -526,6 +555,55 @@ class MenuBar(tk.Menu):
     def show_remap_function(self) -> None:
         self.app.dtw_obj.plot_remap_function()
 
+    def reset_bars_track_1(self) -> None:
+        # -- reset bars data --
+        self.app.bars_1.reset_bars()
+
+        # -- update view 1 --
+        self.app.view_1.get_plot()
+
+        # -- update view 3 --
+        if self.app.data_3.x is not None:
+            self.app.view_3.get_plot()
+    
+    def reset_bars_track_2(self) -> None:
+        # -- reset bars data --
+        self.app.bars_2.reset_bars()
+
+        # -- update view 2 --
+        self.app.view_2.get_plot()
+
+        # -- update view 4 --
+        if self.app.data_4.x is not None:
+            self.app.view_4.get_plot()
+
+        # -- update view 5 --
+        if len(self.app.data_5.df_midi) > 0:
+            self.app.view_5.get_plot()
+    
+    def reset_all_bars(self) -> None:
+        # -- reset bars data --
+        self.app.bars_1.reset_bars()
+        self.app.bars_2.reset_bars()
+
+        # -- update view 1 --
+        self.app.view_1.get_plot()
+
+        # -- update view 2 --
+        self.app.view_2.get_plot()
+
+        # -- update view 3 --
+        if self.app.data_3.x is not None:
+            self.app.view_3.get_plot()
+        
+        # -- update view 4 --
+        if self.app.data_4.x is not None:
+            self.app.view_4.get_plot()
+
+        # -- update view 5 --
+        if len(self.app.data_5.df_midi) > 0:
+            self.app.view_5.get_plot()
+
     # -- VIEW -------------------------------------------------------
 
     def zoom_in(self) -> None:
@@ -634,6 +712,9 @@ class MenuBar(tk.Menu):
     
     def adjust_volume(self) -> None:
         self.app.mp.adjust_volume()
+
+    def set_start_pos(self) -> None:
+        self.app.mp.start_pos = self.start_pos.get()
 
     # -- HELP -------------------------------------------------------
 
@@ -1965,10 +2046,13 @@ class MusicPlayer():
         self.slider_pos_last:Optional[float] = None # last position of the track progression slider in the wave plot in seconds
         self.override_time:bool = False          # ugly variable to circumvent a bug
 
-        self.start_pos:Union[int,float] = 60     # position where we want to start playing back the track
+        self.start_pos:Union[int,float] = 0     # position where we want to start playing back the track (in seconds)
 
         # -- init music --
         mixer.init()
+
+        # -- ability to insert bars on slider pos --
+        self.app.bind('<b>', self.insert_bar)
 
     def load_track(self) -> None:
         # -- clean up previous track --
@@ -2124,6 +2208,24 @@ class MusicPlayer():
     
     def adjust_volume(self) -> None:
         mixer.music.set_volume(self.app.menubar.volume.get()/100)
+
+    def insert_bar(self, event) -> None:
+        if self.playing_state is True:
+            x_pos = mixer.music.get_pos() / 1000 + self.start_pos # seconds
+            if self.app.menubar.track.get() == 1:
+                self.app.bars_1.insert_bar(x_pos)
+                
+                self.app.view_1.insert_bar(x_pos, 'blue')
+                self.app.view_3.insert_bar(x_pos, 'blue')
+            
+            elif self.app.menubar.track.get() == 2:
+                self.app.bars_2.insert_bar(x_pos)
+
+                self.app.view_2.insert_bar(x_pos, 'blue')
+                self.app.view_4.insert_bar(x_pos, 'blue')
+                self.app.view_5.insert_bar(x_pos, 'blue')
+            else:
+                raise ValueError("expects value of 1 or 2 for self.app.menubar.track.get()")
 
 
 # -------------------------------------------------------------------
