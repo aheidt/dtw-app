@@ -212,7 +212,7 @@ class MidiIO:
         pass
 
     @staticmethod
-    def midi_to_df(file_midi:str, clip_t0:bool=True) -> pd.DataFrame:
+    def midi_to_df(file_midi:str, clip_t0:bool=True, mark_velocity_0_as_note_off:bool=True, tempo_factor:float=1.0) -> pd.DataFrame:
         """
             Reads a midi file and returns the content as a pd.DataFrame.\n
             Ignores meta messages.
@@ -220,12 +220,13 @@ class MidiIO:
             Args:
                 file_midi (str): filepath of the midi file
                 clip_t0 (bool): should the time be shifted so that the midi starts at time 0?
+                mark_velocity_0_as_note_off (bool): should note on events with a velocity of 0 be marked as note off events?
             
             Returns:
                 (pd.DataFrame): contains all midi note events inside a dataframe. 
         """
         mid = MidiFile(file_midi, clip=True)
-        ticks_per_beat = mid.ticks_per_beat
+        ticks_per_beat = mid.ticks_per_beat*tempo_factor
         df = pd.DataFrame(None, columns=[
             "type", "channel", "track", "ticks_per_beat", "note", "velocity", 
             "time delta (tick)", "time abs (tick)", "time delta (sec)", "time abs (sec)"])
@@ -256,6 +257,9 @@ class MidiIO:
         
         df["time delta (sec)"] = [mido.tick2second(tick=x, ticks_per_beat=ticks_per_beat, tempo=500000) for x in df["time delta (tick)"]]
         df["time abs (sec)"] = [mido.tick2second(tick=x, ticks_per_beat=ticks_per_beat, tempo=500000) for x in df["time abs (tick)"]]
+
+        if mark_velocity_0_as_note_off is True:
+            df.type = pd.Series(['note_off' if x == 0 else 'note_on' for x in df.velocity])
 
         return df
 
@@ -297,6 +301,13 @@ class MidiIO:
         # -- save file --
         file.save(outfile)
 
+    @staticmethod
+    def copy_midi(midi_in_file:str, midi_out_file:str, tempo_factor:float=1.0) -> None:
+        print("reading midi")
+        df_midi = MidiIO.midi_to_df(file_midi=midi_in_file, clip_t0=False, tempo_factor=tempo_factor)
+        print("writing midi")
+        MidiIO.export_midi(df_midi=df_midi, outfile=midi_out_file, time_colname="time abs (sec)")
+        print("done")
 
 # -----------------------------------------------------------------------------
 # Main
@@ -340,4 +351,10 @@ if __name__ == "__main__":
     # Step 5: Write midi
     outfile = os.path.join(data_dir, 'midi_files', 'test_stepsize1234+_6x_weight_chroma4_newtest.mid')
     MidiIO.export_midi(df_midi=dtw_obj.df_midi, outfile=outfile, time_colname="time (sec) remapped")
+
+    # Example: How to change speed of midi track
+    MidiIO.copy_midi(
+        midi_in_file=r'C:\Users\User\Documents\GitHub\DTW\Heart Asks Pleasure First\tpiano_edited.mid',
+        midi_out_file=r'C:\Users\User\Documents\GitHub\DTW\Heart Asks Pleasure First\tpiano_edited_half_speed.mid',
+        tempo_factor=0.5)
 
