@@ -4,4 +4,5 @@ matplotlib==3.3.3
 mido==1.2.9
 numpy==1.19.3
 pandas==1.2.0
+pygame==2.1.0
 scipy==1.5.4
