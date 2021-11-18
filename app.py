@@ -278,30 +278,30 @@ class MenuBar(tk.Menu):
         playmenu.add_cascade(label="Volume", menu=volume)
         playmenu.add_separator()
         start_pos = tk.Menu(playmenu, tearoff=0)
-        start_pos.add_radiobutton(label="0 sec", value=0, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="15 sec", value=15, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="30 sec", value=30, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="45 sec", value=45, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="60 sec", value=60, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="80 sec", value=80, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="100 sec", value=100, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="120 sec", value=120, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="140 sec", value=140, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="160 sec", value=160, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="180 sec", value=180, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="210 sec", value=210, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="240 sec", value=240, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="270 sec", value=270, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="300 sec", value=300, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="360 sec", value=360, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="420 sec", value=420, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="480 sec", value=480, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="540 sec", value=540, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="600 sec", value=600, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="660 sec", value=660, variable=self.start_pos, command=self.set_start_pos)
-        start_pos.add_radiobutton(label="720 sec", value=720, variable=self.start_pos, command=self.set_start_pos)
+        start_pos.add_radiobutton(label="0 sec", value=0, variable=self.start_pos)
+        start_pos.add_radiobutton(label="15 sec", value=15, variable=self.start_pos)
+        start_pos.add_radiobutton(label="30 sec", value=30, variable=self.start_pos)
+        start_pos.add_radiobutton(label="45 sec", value=45, variable=self.start_pos)
+        start_pos.add_radiobutton(label="60 sec", value=60, variable=self.start_pos)
+        start_pos.add_radiobutton(label="80 sec", value=80, variable=self.start_pos)
+        start_pos.add_radiobutton(label="100 sec", value=100, variable=self.start_pos)
+        start_pos.add_radiobutton(label="120 sec", value=120, variable=self.start_pos)
+        start_pos.add_radiobutton(label="140 sec", value=140, variable=self.start_pos)
+        start_pos.add_radiobutton(label="160 sec", value=160, variable=self.start_pos)
+        start_pos.add_radiobutton(label="180 sec", value=180, variable=self.start_pos)
+        start_pos.add_radiobutton(label="210 sec", value=210, variable=self.start_pos)
+        start_pos.add_radiobutton(label="240 sec", value=240, variable=self.start_pos)
+        start_pos.add_radiobutton(label="270 sec", value=270, variable=self.start_pos)
+        start_pos.add_radiobutton(label="300 sec", value=300, variable=self.start_pos)
+        start_pos.add_radiobutton(label="360 sec", value=360, variable=self.start_pos)
+        start_pos.add_radiobutton(label="420 sec", value=420, variable=self.start_pos)
+        start_pos.add_radiobutton(label="480 sec", value=480, variable=self.start_pos)
+        start_pos.add_radiobutton(label="540 sec", value=540, variable=self.start_pos)
+        start_pos.add_radiobutton(label="600 sec", value=600, variable=self.start_pos)
+        start_pos.add_radiobutton(label="660 sec", value=660, variable=self.start_pos)
+        start_pos.add_radiobutton(label="720 sec", value=720, variable=self.start_pos)
         playmenu.add_cascade(label="Playback Position", menu=start_pos)
-
+        
         self.app.bind('<space>', self.space)
         self.app.bind('<F9>', self.f9)
         self.app.bind('<F10>', self.f10)
@@ -712,9 +712,6 @@ class MenuBar(tk.Menu):
     
     def adjust_volume(self) -> None:
         self.app.mp.adjust_volume()
-
-    def set_start_pos(self) -> None:
-        self.app.mp.start_pos = self.start_pos.get()
 
     # -- HELP -------------------------------------------------------
 
@@ -2044,9 +2041,7 @@ class MusicPlayer():
 
         self.slider_pos:Optional[float] = None   # current position of the track progression slider in the wave plot in seconds
         self.slider_pos_last:Optional[float] = None # last position of the track progression slider in the wave plot in seconds
-        self.override_time:bool = False          # ugly variable to circumvent a bug
-
-        self.start_pos:Union[int,float] = 0     # position where we want to start playing back the track (in seconds)
+        self.override_time:bool = False          # ugly variable to avoid bug in pygame.mixer.music.get_pos() where first result after pausing is incorrect & should be dropped
 
         # -- init music --
         mixer.init()
@@ -2100,10 +2095,10 @@ class MusicPlayer():
                 print("No music file to get length of")
         else:
             raise ValueError("Expecting a value of 1 or 2 for self.app.menubar.track")
-    
+
     def play(self) -> None:
         if self.track_loaded is True:
-            mixer.music.play(start=self.start_pos) # Note: you can only start at a different position with mp3 & ogg files, NOT with wav files !!
+            mixer.music.play(start=self.app.menubar.start_pos.get()) # Note: you can only start at a different position with mp3 & ogg files, NOT with wav files !!
             self.play_button_pressed = True
             self.playing_state = True
             self.playing()
@@ -2126,14 +2121,14 @@ class MusicPlayer():
         # -- set position of last slider position --
         self.slider_pos_last = self.slider_pos
         if self.slider_pos_last is None:
-            self.slider_pos_last = self.start_pos
+            self.slider_pos_last = self.app.menubar.start_pos.get()
         
         # -- set position of current slider position --
         current_time = mixer.music.get_pos() / 1000 # seconds
         if self.override_time is True:
             self.slider_pos = self.slider_pos_last
         else:
-            self.slider_pos = current_time + self.start_pos
+            self.slider_pos = current_time + self.app.menubar.start_pos.get()
         self.override_time = False
 
         # -- exit function if track is over --
@@ -2211,7 +2206,7 @@ class MusicPlayer():
 
     def insert_bar(self, event) -> None:
         if self.playing_state is True:
-            x_pos = mixer.music.get_pos() / 1000 + self.start_pos # seconds
+            x_pos = mixer.music.get_pos() / 1000 + self.app.menubar.start_pos.get() # seconds
             if self.app.menubar.track.get() == 1:
                 self.app.bars_1.insert_bar(x_pos)
                 
@@ -2226,6 +2221,11 @@ class MusicPlayer():
                 self.app.view_5.insert_bar(x_pos, 'blue')
             else:
                 raise ValueError("expects value of 1 or 2 for self.app.menubar.track.get()")
+
+
+class MidiPlayer():
+    def __init__(self, parent:App) -> None:
+        self.app = parent
 
 
 # -------------------------------------------------------------------
