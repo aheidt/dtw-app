@@ -190,6 +190,9 @@ class MenuBar(tk.Menu):
         menubar = tk.Menu(self, tearoff=False)
 
         # -- create menu (File) -------------------------------------
+        self.midi_export_speed = tk.DoubleVar()
+        self.midi_export_speed.set(value=1.0)
+
         filemenu = tk.Menu(menubar, tearoff=0)
         filemenu.add_command(label="New", command=self.new, accelerator="Ctrl+N")
         filemenu.add_command(label="Restart", command=self.restart, accelerator="Ctrl+R")
@@ -203,6 +206,15 @@ class MenuBar(tk.Menu):
         filemenu.add_command(label="Open .midi", command=self.on_open_midi, accelerator="Ctrl+M")
         filemenu.add_separator()
         filemenu.add_command(label="Export .midi", command=self.on_save_midi, accelerator="Ctrl+E")
+        midi_export_speed = tk.Menu(filemenu, tearoff=0)
+        midi_export_speed.add_radiobutton(label="25%", value=0.25, variable=self.midi_export_speed)
+        midi_export_speed.add_radiobutton(label="50%", value=0.50, variable=self.midi_export_speed)
+        midi_export_speed.add_radiobutton(label="80%", value=0.75, variable=self.midi_export_speed)
+        midi_export_speed.add_radiobutton(label="100%", value=1.0, variable=self.midi_export_speed)
+        midi_export_speed.add_radiobutton(label="125%", value=1.25, variable=self.midi_export_speed)
+        midi_export_speed.add_radiobutton(label="200%", value=2.0, variable=self.midi_export_speed)
+        midi_export_speed.add_radiobutton(label="400%", value=4.0, variable=self.midi_export_speed)
+        filemenu.add_cascade(label="export midi speed", menu=midi_export_speed)
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.exit_app, accelerator="Ctrl+Q")
 
@@ -494,7 +506,7 @@ class MenuBar(tk.Menu):
         
         if self.app.data_5.outfile.endswith((".mid", ".MID")) is False:
             self.app.data_5.outfile += ".mid"
-        MidiIO.export_midi(df_midi=self.app.data_5.df_midi, outfile=self.app.data_5.outfile, time_colname="time abs (sec)")
+        MidiIO.export_midi(df_midi=self.app.data_5.df_midi, outfile=self.app.data_5.outfile, time_colname="time abs (sec)", tempo_factor=self.midi_export_speed.get())
         print(f"Saved midi file to: {self.app.data_5.outfile}")
 
     # ---------------------------------------------------------------
@@ -2156,6 +2168,10 @@ class MusicPlayer():
                 self.app.view_2.delete_bar(x=self.slider_pos_last)
         except Exception:
             pass
+
+        # -- move view --
+        if self.slider_pos > ((self.app.x_max - self.app.x_min) * 0.9 + self.app.x_min):
+            self.app.menubar.scroll_right()
 
         # -- call the function again to update the slider --            
         self.app.after(int(self.steps*1000), self.playing)

@@ -264,7 +264,7 @@ class MidiIO:
         return df
 
     @staticmethod
-    def export_midi(df_midi:pd.DataFrame, outfile:str, time_colname:str="time (sec) remapped") -> None:
+    def export_midi(df_midi:pd.DataFrame, outfile:str, time_colname:str="time (sec) remapped", tempo_factor:float=1.0) -> None:
         """
             Writes a midi file based on a pd.DataFrame containing midi events.
 
@@ -276,6 +276,10 @@ class MidiIO:
             Comments:
                 currently writes all events into track 0
         """
+        # -- apply tempo_factor --
+        if tempo_factor != 1.0:
+            df_midi[time_colname] = [x/tempo_factor for x in df_midi[time_colname]]
+
         # -- global tempo --
         tempo:int = 500000
         ticks_per_beat:int = 96 # set to a higher value to reduce rounding errors
