@@ -212,7 +212,7 @@ class MidiIO:
         pass
 
     @staticmethod
-    def midi_to_df(file_midi:str, clip_t0:bool=True, mark_velocity_0_as_note_off:bool=True, tempo_factor:float=1.0) -> pd.DataFrame:
+    def midi_to_df(file_midi:str, clip_t0:bool=True, mark_velocity_0_as_note_off:bool=True) -> pd.DataFrame:
         """
             Reads a midi file and returns the content as a pd.DataFrame.\n
             Ignores meta messages.
@@ -226,7 +226,7 @@ class MidiIO:
                 (pd.DataFrame): contains all midi note events inside a dataframe. 
         """
         mid = MidiFile(file_midi, clip=True)
-        ticks_per_beat = mid.ticks_per_beat*tempo_factor
+        ticks_per_beat = mid.ticks_per_beat
         df = pd.DataFrame(None, columns=[
             "type", "channel", "track", "ticks_per_beat", "note", "velocity", 
             "time delta (tick)", "time abs (tick)", "time delta (sec)", "time abs (sec)"])
@@ -264,7 +264,7 @@ class MidiIO:
         return df
 
     @staticmethod
-    def export_midi(df_midi:pd.DataFrame, outfile:str, time_colname:str="time (sec) remapped", tempo_factor:float=1.0) -> None:
+    def export_midi(df_midi:pd.DataFrame, outfile:str, time_colname:str="time (sec) remapped") -> None:
         """
             Writes a midi file based on a pd.DataFrame containing midi events.
 
@@ -276,10 +276,6 @@ class MidiIO:
             Comments:
                 currently writes all events into track 0
         """
-        # -- apply tempo_factor --
-        if tempo_factor != 1.0:
-            df_midi[time_colname] = [x/tempo_factor for x in df_midi[time_colname]]
-
         # -- global tempo --
         tempo:int = 500000
         ticks_per_beat:int = 96 # set to a higher value to reduce rounding errors
@@ -308,7 +304,7 @@ class MidiIO:
     @staticmethod
     def copy_midi(midi_in_file:str, midi_out_file:str, tempo_factor:float=1.0) -> None:
         print("reading midi")
-        df_midi = MidiIO.midi_to_df(file_midi=midi_in_file, clip_t0=False, tempo_factor=tempo_factor)
+        df_midi = MidiIO.midi_to_df(file_midi=midi_in_file, clip_t0=False)
         print("writing midi")
         MidiIO.export_midi(df_midi=df_midi, outfile=midi_out_file, time_colname="time abs (sec)")
         print("done")
@@ -319,15 +315,19 @@ class MidiIO:
 
 if __name__ == "__main__":
 
+    # -------------------------------------------------------------------------
+    # DTW Example
+    # -------------------------------------------------------------------------
+
     # Step 0: file location
     try:
         data_dir = os.path.dirname(__file__)
     except NameError:
         data_dir = os.path.join(r'C:\Users\User\Documents\GitHub\DTW')
     finally:
-        file_midi          = os.path.join(data_dir, 'midi_files', 'Cataldi_Impromptu.mid')
-        file_wav_original  = os.path.join(data_dir, 'wav_files', 'Cataldi_Impromptu_in_A_Minor_REAL3.wav')
-        file_wav_from_midi = os.path.join(data_dir, 'wav_files', 'Cataldi_ImpromptuMIDI.wav')
+        file_wav_original  = os.path.join(data_dir, 'wav_files', 'true_audio.wav')
+        file_wav_from_midi = os.path.join(data_dir, 'wav_files', 'audio_from_midi_file_before.wav')
+        file_midi          = os.path.join(data_dir, 'midi_files', 'midi_file_before.mid')
 
     # Step 1: load data
     print(f"Loading {file_wav_original} ...")
@@ -353,12 +353,16 @@ if __name__ == "__main__":
     dtw_obj.compute_remapped_midi()
 
     # Step 5: Write midi
-    outfile = os.path.join(data_dir, 'midi_files', 'test_stepsize1234+_6x_weight_chroma4_newtest.mid')
+    outfile = os.path.join(data_dir, 'midi_files', 'midi_file_after.mid')
     MidiIO.export_midi(df_midi=dtw_obj.df_midi, outfile=outfile, time_colname="time (sec) remapped")
 
-    # Example: How to change speed of midi track
-    MidiIO.copy_midi(
-        midi_in_file=r'C:\Users\User\Documents\GitHub\DTW\Heart Asks Pleasure First\tpiano_edited.mid',
-        midi_out_file=r'C:\Users\User\Documents\GitHub\DTW\Heart Asks Pleasure First\tpiano_edited_half_speed.mid',
-        tempo_factor=0.5)
+    # -------------------------------------------------------------------------
+    # Example of: MIDI -> DF -> MIDI (roundtrip)
+    # -------------------------------------------------------------------------
+    df_midi = MidiIO.midi_to_df(file_midi=r"C:\Users\User\midifile_in.mid")
+    df_midi['time abs (sec)'] = df_midi['time abs (sec)'] * 3 # stretches duration by x3
+    MidiIO.export_midi(
+        df_midi=df_midi, 
+        outfile=r"C:\Users\User\midifile_out.mid",
+        time_colname='time abs (sec)')
 

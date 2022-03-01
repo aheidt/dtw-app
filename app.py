@@ -1,15 +1,31 @@
-# -------------------------------------------------------------------
-# Header
+###################### BEGIN GPL LICENSE BLOCK ######################
+#
+#     DTW APP TO ALIGN MIDI WITH AUDIO
+#     Copyright (C) 2022 Antoine Heidt 
+#     
+#     This program is free software; you can redistribute it and/or
+#     modify it under the terms of the GNU General Public License as 
+#     published by the Free Software Foundation; either version 3 
+#     of the License, or (at your option) any later version.
+#     
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#     
+#     You should have received a copy of the GNU General Public License
+#     along with this program; if not, write to the Free Software Foundation,
+#     Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+###################### END GPL LICENSE BLOCK ########################
+
+# ----------------------<[ SUPPORT / CONTACT ]>----------------------
+# Programmed by: Antoine Heidt
+# GitHub Repository: https://www.github.com/aheidt/dtw-app
 # -------------------------------------------------------------------
 
 # -- package info --
-__description__:str = "This application helps to align midi files with audio files."
-__author__:str = "Antoine Heidt"
-__license__:str = "All rights reserved."
-__version__:str = "1.3.0" 
-# 1st version number: Major update, changes project data structure & app
-# 2nd version number: Minor update, changes project data structure & app
-# 3rd version number: Minor update, does not change project data structure, only app
+__version__:str = "1.4.0" 
 
 
 # -------------------------------------------------------------------
@@ -25,7 +41,7 @@ from tkinter import messagebox
 import numpy as np
 import pandas as pd
 import os
-from typing import List, Optional, Tuple, Union
+from typing import List, Any, Optional, Tuple, Union
 import pickle
 from datetime import datetime
 import warnings
@@ -67,8 +83,12 @@ class App(tk.Tk):
         # -------------------------------------------------
 
         # -- init constants --
-        self.downsampling_factor_1:int = 150 # only plot every N-th data point from .mp3 for performance reasons
-        self.downsampling_factor_2:int = 200 # only plot every N-th data point from .mp3 for performance reasons
+        self.downsampling_factor_1:int = 100 # only plot every N-th data point from .mp3 for performance reasons
+        self.downsampling_factor_2:int = 100 # only plot every N-th data point from .mp3 for performance reasons
+        
+        # -- init variables --
+        self.dtw_enabled:bool = True           # disable dtw once data has been manipulated
+        self.dtw_output_available:bool = False # enable dtw stats once dtw has been applied
 
         # -- init data containers --
         self.bars_1 = Bars1(self)
@@ -87,7 +107,7 @@ class App(tk.Tk):
             self.project_data.load_demo()
 
         # -- dtw object --
-        # self.dtw_obj = DTW()
+        self.dtw_obj:DTW = DTW(x_raw=None, y_raw=None, fs=None, df_midi=None)
 
         # -------------------------------------------------
         # VIEWS (view)
@@ -190,15 +210,12 @@ class MenuBar(tk.Menu):
         menubar = tk.Menu(self, tearoff=False)
 
         # -- create menu (File) -------------------------------------
-        self.midi_export_speed = tk.DoubleVar()
-        self.midi_export_speed.set(value=1.0)
-
         filemenu = tk.Menu(menubar, tearoff=0)
         filemenu.add_command(label="New", command=self.new, accelerator="Ctrl+N")
         filemenu.add_command(label="Restart", command=self.restart, accelerator="Ctrl+R")
         filemenu.add_separator()
         filemenu.add_command(label="Load Project", command=self.load_project, accelerator="Ctrl+O")
-        filemenu.add_command(label="Save Project as...", command=self.save_project_as, accelerator=None)
+        filemenu.add_command(label="Save Project as...", command=self.save_project_as)
         filemenu.add_command(label="Save Project", command=self.save_project, accelerator="Ctrl+S")
         filemenu.add_separator()
         filemenu.add_command(label="Open .mp3 (Original)", command=self.on_open_mp3_original, accelerator="Ctrl+I")
@@ -206,15 +223,6 @@ class MenuBar(tk.Menu):
         filemenu.add_command(label="Open .midi", command=self.on_open_midi, accelerator="Ctrl+M")
         filemenu.add_separator()
         filemenu.add_command(label="Export .midi", command=self.on_save_midi, accelerator="Ctrl+E")
-        midi_export_speed = tk.Menu(filemenu, tearoff=0)
-        midi_export_speed.add_radiobutton(label="25%", value=0.25, variable=self.midi_export_speed)
-        midi_export_speed.add_radiobutton(label="50%", value=0.50, variable=self.midi_export_speed)
-        midi_export_speed.add_radiobutton(label="80%", value=0.75, variable=self.midi_export_speed)
-        midi_export_speed.add_radiobutton(label="100%", value=1.0, variable=self.midi_export_speed)
-        midi_export_speed.add_radiobutton(label="125%", value=1.25, variable=self.midi_export_speed)
-        midi_export_speed.add_radiobutton(label="200%", value=2.0, variable=self.midi_export_speed)
-        midi_export_speed.add_radiobutton(label="400%", value=4.0, variable=self.midi_export_speed)
-        filemenu.add_cascade(label="export midi speed", menu=midi_export_speed)
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.exit_app, accelerator="Ctrl+Q")
 
@@ -239,9 +247,9 @@ class MenuBar(tk.Menu):
         dtwmenu.add_command(label="show dtw mappings", command=self.show_dtw_mappings, accelerator="F3")
         dtwmenu.add_command(label="show remap function", command=self.show_remap_function, accelerator="F4")
         dtwmenu.add_separator()
-        dtwmenu.add_command(label="reset bars (track 1)", command=self.reset_bars_track_1, accelerator=None)
-        dtwmenu.add_command(label="reset bars (track 2)", command=self.reset_bars_track_2, accelerator=None)
-        dtwmenu.add_command(label="reset all bars", command=self.reset_all_bars, accelerator=None)
+        dtwmenu.add_command(label="reset bars (track 1)", command=self.reset_bars_track_1)
+        dtwmenu.add_command(label="reset bars (track 2)", command=self.reset_bars_track_2)
+        dtwmenu.add_command(label="reset all bars", command=self.reset_all_bars)
 
         self.app.bind('<F1>', self.f1)
 
@@ -264,9 +272,6 @@ class MenuBar(tk.Menu):
         self.app.bind('<Control-Left>', self.ctrl_left)
 
         # -- create menu (Play) -------------------------------------
-        self.track = tk.IntVar()
-        self.track.set(value=1)
-
         self.volume = tk.IntVar()
         self.volume.set(value=100)
 
@@ -278,9 +283,6 @@ class MenuBar(tk.Menu):
         playmenu.add_command(label="Pause/Continue", command=self.pause, accelerator="Space")
         playmenu.add_command(label="Stop", command=self.stop, accelerator="F10")
         playmenu.add_separator()
-        playmenu.add_radiobutton(label="Track 1", value=1, variable=self.track, accelerator="F11", command=self.enable_track_1)
-        playmenu.add_radiobutton(label="Track 2", value=2, variable=self.track, accelerator="F12", command=self.enable_track_2)
-        playmenu.add_separator()
         volume = tk.Menu(playmenu, tearoff=0)
         volume.add_radiobutton(label="0%", value=0, variable=self.volume, command=self.adjust_volume)
         volume.add_radiobutton(label="25%", value=25, variable=self.volume, command=self.adjust_volume)
@@ -288,37 +290,10 @@ class MenuBar(tk.Menu):
         volume.add_radiobutton(label="75%", value=75, variable=self.volume, command=self.adjust_volume)
         volume.add_radiobutton(label="100%", value=100, variable=self.volume, command=self.adjust_volume)
         playmenu.add_cascade(label="Volume", menu=volume)
-        playmenu.add_separator()
-        start_pos = tk.Menu(playmenu, tearoff=0)
-        start_pos.add_radiobutton(label="0 sec", value=0, variable=self.start_pos)
-        start_pos.add_radiobutton(label="15 sec", value=15, variable=self.start_pos)
-        start_pos.add_radiobutton(label="30 sec", value=30, variable=self.start_pos)
-        start_pos.add_radiobutton(label="45 sec", value=45, variable=self.start_pos)
-        start_pos.add_radiobutton(label="60 sec", value=60, variable=self.start_pos)
-        start_pos.add_radiobutton(label="80 sec", value=80, variable=self.start_pos)
-        start_pos.add_radiobutton(label="100 sec", value=100, variable=self.start_pos)
-        start_pos.add_radiobutton(label="120 sec", value=120, variable=self.start_pos)
-        start_pos.add_radiobutton(label="140 sec", value=140, variable=self.start_pos)
-        start_pos.add_radiobutton(label="160 sec", value=160, variable=self.start_pos)
-        start_pos.add_radiobutton(label="180 sec", value=180, variable=self.start_pos)
-        start_pos.add_radiobutton(label="210 sec", value=210, variable=self.start_pos)
-        start_pos.add_radiobutton(label="240 sec", value=240, variable=self.start_pos)
-        start_pos.add_radiobutton(label="270 sec", value=270, variable=self.start_pos)
-        start_pos.add_radiobutton(label="300 sec", value=300, variable=self.start_pos)
-        start_pos.add_radiobutton(label="360 sec", value=360, variable=self.start_pos)
-        start_pos.add_radiobutton(label="420 sec", value=420, variable=self.start_pos)
-        start_pos.add_radiobutton(label="480 sec", value=480, variable=self.start_pos)
-        start_pos.add_radiobutton(label="540 sec", value=540, variable=self.start_pos)
-        start_pos.add_radiobutton(label="600 sec", value=600, variable=self.start_pos)
-        start_pos.add_radiobutton(label="660 sec", value=660, variable=self.start_pos)
-        start_pos.add_radiobutton(label="720 sec", value=720, variable=self.start_pos)
-        playmenu.add_cascade(label="Playback Position", menu=start_pos)
         
         self.app.bind('<space>', self.space)
         self.app.bind('<F9>', self.f9)
         self.app.bind('<F10>', self.f10)
-        self.app.bind('<F11>', self.f11)
-        self.app.bind('<F12>', self.f12)
 
         # -- create menu (Help) -------------------------------------
         helpmenu = tk.Menu(menubar, tearoff=0)
@@ -418,7 +393,7 @@ class MenuBar(tk.Menu):
 
     def on_open_mp3_original(self) -> None:
         # -- load dataset --
-        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("mp3 files","*.mp3;"),("wav files","*.wav;"),("All files","*.*")))
+        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("audio files","*.mp3;*.wav;"),("all files","*.*")))
         
         if filename == "":
             print("Cancelled opening original mp3 file")
@@ -430,7 +405,7 @@ class MenuBar(tk.Menu):
         print("Computing chroma features...")
         self.app.data_3.load_chroma_features()
         
-        print("Done")
+        print("Adjusting window...")
 
         # -- reset graph limits --
         self.app.reset_bounds()
@@ -442,13 +417,14 @@ class MenuBar(tk.Menu):
         self.app.view_3.get_plot()
         self.app.view_4.reload_axis()
 
-        # -- load audiofile --
-        if self.track.get() == 1:
-            self.app.mp.load_track()
+        # -- reset that track has not been loaded to audio playback engine yet --
+        self.app.mp.track_loaded = False
+
+        print("Done")
 
     def on_open_mp3_from_midi(self) -> None:
         # -- load dataset --
-        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("mp3 files","*.mp3;"),("wav files","*.wav;"),("All files","*.*")))
+        filename = filedialog.askopenfilename(initialdir="/", title="Open file", filetypes=(("audio files","*.mp3;*.wav;"),("all files","*.*")))
         
         if filename == "":
             print("Cancelled opening mp3 from midi")
@@ -459,9 +435,9 @@ class MenuBar(tk.Menu):
 
         print("Computing chroma features...")
         self.app.data_4.load_chroma_features()
-        
-        print("Done")
-        
+               
+        print("Adjusting window...")
+
         # -- reset graph limits --
         self.app.reset_bounds()
         
@@ -472,9 +448,7 @@ class MenuBar(tk.Menu):
         self.app.view_3.reload_axis()
         self.app.view_4.get_plot()
 
-        # -- load audiofile --
-        if self.track.get() == 2:
-            self.app.mp.load_track()
+        print("Done")
         
     def on_open_midi(self) -> None:
         # -- load dataset --
@@ -484,7 +458,11 @@ class MenuBar(tk.Menu):
             print("Cancelled opening midi file")
             return None
         
+        print("Loading file...")
+
         self.app.data_5.load_file(filename)
+
+        print("Adjusting window...")
 
         # -- reset graph limits --
         self.app.reset_bounds()
@@ -496,6 +474,8 @@ class MenuBar(tk.Menu):
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
 
+        print("Done")
+
     # ---------------------------------------------------------------
 
     def on_save_midi(self) -> None:
@@ -506,7 +486,7 @@ class MenuBar(tk.Menu):
         
         if self.app.data_5.outfile.endswith((".mid", ".MID")) is False:
             self.app.data_5.outfile += ".mid"
-        MidiIO.export_midi(df_midi=self.app.data_5.df_midi, outfile=self.app.data_5.outfile, time_colname="time abs (sec)", tempo_factor=self.midi_export_speed.get())
+        MidiIO.export_midi(df_midi=self.app.data_5.df_midi, outfile=self.app.data_5.outfile, time_colname="time abs (sec)")
         print(f"Saved midi file to: {self.app.data_5.outfile}")
 
     # ---------------------------------------------------------------
@@ -518,8 +498,16 @@ class MenuBar(tk.Menu):
 
     def apply_dtw_algo(self) -> None:
         # -- compute DTW time mappings --
-        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y, y_raw=self.app.data_2.y, fs=self.app.data_1.fs, df_midi=None)
+        self.app.dtw_obj = DTW(x_raw=self.app.data_1.y, y_raw=self.app.data_2.y, fs=self.app.data_1.fs, df_midi=self.app.data_5.df_midi)
         
+        if self.app.dtw_enabled is False:
+            messagebox.showerror(title="Error", message="DTW is not available for already manipulated data.\nTo run it again, restart the app and load fresh audio + midi data.")
+            return None
+
+        if any([x is None or len(x) == 0 for x in [self.app.data_1.y, self.app.data_2.y, self.app.data_5.df_midi]]) or self.app.data_1.fs is None:
+            messagebox.showerror(title="Error", message="Please load some data first!  (audio + midi)")
+            return None
+
         print("Computing chroma features...")
         # self.app.dtw_obj.compute_chroma_features()
         self.app.dtw_obj.x_chroma = self.app.data_3.chroma
@@ -556,16 +544,31 @@ class MenuBar(tk.Menu):
         self.app.view_3.reload_axis()
         self.app.view_4.reload_axis()
 
+        # -- disable dtw --
+        self.app.dtw_enabled = False
+
+        # -- enable detailed dtw reports ---
+        self.app.dtw_output_available = True
+
         print("Done")
 
     def show_chroma_features(self) -> None:
-        self.app.dtw_obj.plot_chroma_features()
+        if self.app.dtw_output_available is True:
+            self.app.dtw_obj.plot_chroma_features()
+        else:
+            messagebox.showinfo(title="Info", message="Run DTW first to enable stats.")
 
     def show_dtw_mappings(self) -> None:
-        self.app.dtw_obj.plot_dtw_mappings()
+        if self.app.dtw_output_available is True:
+            self.app.dtw_obj.plot_dtw_mappings()
+        else:
+            messagebox.showinfo(title="Info", message="Run DTW first to enable stats.")
 
     def show_remap_function(self) -> None:
-        self.app.dtw_obj.plot_remap_function()
+        if self.app.dtw_output_available is True:
+            self.app.dtw_obj.plot_remap_function()
+        else:
+            messagebox.showinfo(title="Info", message="Run DTW first to enable stats.")
 
     def reset_bars_track_1(self) -> None:
         # -- reset bars data --
@@ -714,21 +717,13 @@ class MenuBar(tk.Menu):
     def stop(self) -> None:
         self.app.mp.stop()
 
-    def enable_track_1(self) -> None:
-        self.track.set(value=1)
-        self.app.mp.load_track()
-    
-    def enable_track_2(self) -> None:
-        self.track.set(value=2)
-        self.app.mp.load_track()
-    
     def adjust_volume(self) -> None:
         self.app.mp.adjust_volume()
 
     # -- HELP -------------------------------------------------------
 
     def help(self):
-        pass
+        messagebox.showinfo(title="Help", message="Documentation available at:\nhttps://www.github.com/aheidt/dtw-app")
 
     # ---------------------------------------------------------------
     # HOTKEY EVENTS
@@ -812,12 +807,6 @@ class MenuBar(tk.Menu):
     def f10(self, event) -> None:
         self.stop()
 
-    def f11(self, event) -> None:
-        self.enable_track_1()
-    
-    def f12(self, event) -> None:
-        self.enable_track_2()
-
 
 # -------------------------------------------------------------------
 # Data (model)
@@ -828,7 +817,7 @@ class ProjectData():
     def __init__(self, parent:App) -> None:
         # -- init parent --
         self.app = parent
-        self.filename = None
+        self.filename:Optional[str] = None
     
     def load_demo(self) -> None:
         # -- data source --
@@ -860,6 +849,10 @@ class ProjectData():
         if settings["version"].split(sep=".")[:2] != __version__.split(sep=".")[:2]:
             raise IOError("Couldn't load project, incompatible versions (data: {data_version}, app: {app_version})".format(
                 data_version=settings["version"], app_version=__version__))
+
+        # -- settings --
+        self.app.dtw_enabled          = settings["dtw_enabled"]
+        self.app.dtw_output_available = settings["dtw_output_available"]
 
         # -- bars --
         self.app.bars_1.bars = bars_1["bars_1"]
@@ -947,6 +940,8 @@ class ProjectData():
         # -- miscellaneous data --
         settings = {
             "version": __version__,
+            "dtw_enabled": self.app.dtw_enabled,
+            "dtw_output_available": self.app.dtw_output_available,
         }
 
         # -- bundle data --
@@ -969,8 +964,9 @@ class ProjectData():
         with open(filename, 'wb') as filehandle:
             pickle.dump(data, filehandle)
 
-        # -- log message --
+        # -- log / ui message --
         print(f"Successfully saved project to {filename}")
+        messagebox.showinfo("Info", "Project successfully saved")
 
 
 class Bars1():
@@ -994,7 +990,7 @@ class Bars1():
     
     # -- get bar relations ------------------------------------------
 
-    def bar_exists(self, x:Union[int,float], window_perc:Optional[float] = 0.013) -> bool:
+    def bar_exists(self, x:Union[int,float], window_perc:float = 0.013) -> bool:
         """
             Checks if a bar exists within the predefined limits (based on percentage deviation relative to the window size).
             Returns the exact position of the bar if found, otherwise returns None.
@@ -1006,7 +1002,7 @@ class Bars1():
             Returns:
                 (bool): Returns True if a bar exists within proximity, otherwise returns False.
         """
-        if window_perc is None or window_perc == 0 or window_perc == 0.0:
+        if window_perc == 0 or window_perc == 0.0:
             if x in self.bars:
                 return True
             else:
@@ -1017,7 +1013,7 @@ class Bars1():
             lower_bound = x - deviation
             upper_bound = x + deviation
             
-            results = [x for x in self.bars if lower_bound < x < upper_bound]
+            results = [x for x in self.bars if lower_bound < x and x < upper_bound]
             
             if len(results) == 0:
                 return False
@@ -1213,7 +1209,7 @@ class Data1():
         self.app = parent
 
         # -- data source --
-        self.filename:Optional[str] = None
+        self.filename:str = ""
 
         # -- init dataset --
         self.x = np.arange(0, 1.001, 0.001).round(2).tolist()
@@ -1249,7 +1245,7 @@ class Data2():
         self.app = parent
 
         # -- data source --
-        self.filename:Optional[str] = None
+        self.filename:str = ""
 
         # -- init dataset --
         self.x = np.arange(0, 1.001, 0.001).round(2).tolist()
@@ -1315,10 +1311,10 @@ class Data3():
 
         # -- init dataset --
         self.chroma = None
-        self.x = None
+        self.x:List[Any] = []
         self.y = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H', '']
         self.fs = None
-        self.hop_length = 512
+        self.hop_length:int = 512
     
     # -- load chroma features ---------------------------------------
 
@@ -1341,7 +1337,7 @@ class Data4():
 
         # -- init dataset --
         self.chroma = None
-        self.x = None
+        self.x:List[Any] = []
         self.y = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H', '']
         self.fs = None
         self.hop_length = 512
@@ -1444,8 +1440,32 @@ class Data5():
 # -------------------------------------------------------------------
 
 class View():
-    def __init__(self) -> None:
-        pass
+    def __init__(
+        self, parent:App, figsize:Tuple[Union[float,int],Union[float,int]]=(6,1), 
+        drop_axis:bool=True, margins:dict={'left':0.0, 'bottom':0.0, 'right':1.0, 'top':1.0}
+        ) -> None:
+
+        # -- pass data --
+        self.app = parent
+
+        # -- create frame --
+        self.frame = tk.Frame(self.app)
+        self.frame.pack(sid="top", fill='x')
+
+        # -- init plot --
+        self.figure = plt.Figure(figsize=figsize, dpi=100)
+        self.axes = self.figure.add_subplot()
+
+        # -- adjust axes style --
+        self.axes.grid(axis="x")
+        if drop_axis is True:
+            self.axes.set_yticklabels([])
+            self.axes.set_xticklabels([])
+        self.figure.subplots_adjust(left=margins['left'], bottom=margins['bottom'], right=margins['right'], top=margins['top'], wspace=None, hspace=None)
+
+        # -- init canvas --
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
     def insert_bar(self, x:Union[int,float], color:str='red') -> None:
         self.axes.axvline(x=x, color=color, gid=str(x))
@@ -1472,25 +1492,8 @@ class View():
 
 class View1(View):
     def __init__(self, parent:App) -> None:
-        self.app = parent
-
-        # -- create frame --
-        self.frame = tk.Frame(self.app)
-        self.frame.pack(sid="top", fill='x')
-
-        # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1.5), dpi=100)
-        self.axes = self.figure.add_subplot()
-
-        # -- adjust axes style --
-        self.axes.grid(axis="x")
-        self.axes.set_yticklabels([])
-        self.axes.set_xticklabels([])
-        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
-
-        # -- init canvas --
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # -- init inherited methods from view --
+        super().__init__(parent=parent, figsize=(6,1.5))
     
     def get_plot(self) -> None:
         """Loads a fresh version of the plot."""
@@ -1505,25 +1508,8 @@ class View1(View):
 
 class View2(View):
     def __init__(self, parent:App) -> None:
-        self.app = parent
-
-        # -- create frame --
-        self.frame = tk.Frame(self.app)
-        self.frame.pack(sid="top", fill='x')
-
-        # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1.5), dpi=100)
-        self.axes = self.figure.add_subplot()
-
-        # -- adjust axes style --
-        self.axes.grid(axis="x")
-        self.axes.set_yticklabels([])
-        self.axes.set_xticklabels([])
-        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
-
-        # -- init canvas --
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # -- init inherited methods from view --
+        super().__init__(parent=parent, figsize=(6,1.5))
 
     def get_plot(self):
         """Loads a fresh version of the plot."""
@@ -1538,25 +1524,8 @@ class View2(View):
 
 class View3(View):
     def __init__(self, parent:App) -> None:
-        self.app = parent
-
-        # -- create frame --
-        self.frame = tk.Frame(self.app)
-        self.frame.pack(sid="top", fill='x')
-
-        # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1), dpi=100)
-        self.axes = self.figure.add_subplot()
-
-        # -- adjust axes style --
-        self.axes.grid(axis="x")
-        self.axes.set_yticklabels([])
-        self.axes.set_xticklabels([])
-        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
-
-        # -- init canvas --
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # -- init inherited methods from view --
+        super().__init__(parent=parent, figsize=(6,1))
         
     def get_plot(self):
         # -- clear plot --
@@ -1579,25 +1548,8 @@ class View3(View):
 
 class View4(View):
     def __init__(self, parent:App) -> None:
-        self.app = parent
-
-        # -- create frame --
-        self.frame = tk.Frame(self.app)
-        self.frame.pack(sid="top", fill='x')
-
-        # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1), dpi=100)
-        self.axes = self.figure.add_subplot()
-
-        # -- adjust axes style --
-        self.axes.grid(axis="x")
-        self.axes.set_yticklabels([])
-        self.axes.set_xticklabels([])
-        self.figure.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=None, hspace=None)
-
-        # -- init canvas --
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # -- init inherited methods from view --
+        super().__init__(parent=parent, figsize=(6,1))
         
     def get_plot(self):
         # -- clear plot --
@@ -1621,23 +1573,8 @@ class View4(View):
 
 class View5(View):
     def __init__(self, parent:App) -> None:
-        self.app = parent
-
-        # -- create frame --
-        self.frame = tk.Frame(self.app)
-        self.frame.pack(sid="top", fill='x')
-
-        # -- init plot --
-        self.figure = plt.Figure(figsize=(6,1.4), dpi=100)
-        self.axes = self.figure.add_subplot()
-
-        # -- adjust axes style --
-        self.axes.grid(axis="x")
-        self.figure.subplots_adjust(left=0.0, bottom=0.16, right=1.0, top=1.0, wspace=None, hspace=None)
-
-        # -- init canvas --
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.frame)
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # -- init inherited methods from view --
+        super().__init__(parent=parent, figsize=(6,1.4), drop_axis=False, margins={'left':0.0, 'bottom':0.16, 'right':1.0, 'top':1.0})
 
     def get_plot(self):
         # -- clear plot --
@@ -1696,11 +1633,11 @@ class ClickEvents():
         # -----------------------------------------------------------
 
         # -- click coordinate memory --
-        self.track_1_left_down_coord:Tuple[int, int] = (None, None)
-        self.track_1_left_up_coord:Tuple[int, int] = (None, None)
+        self.track_1_left_down_coord:Tuple[Optional[int], Optional[int]] = (None, None)
+        self.track_1_left_up_coord:Tuple[Optional[int], Optional[int]] = (None, None)
 
-        self.track_1_right_down_coord:Tuple[int, int] = (None, None)
-        self.track_1_right_up_coord:Tuple[int, int] = (None, None)
+        self.track_1_right_down_coord:Tuple[Optional[int], Optional[int]] = (None, None)
+        self.track_1_right_up_coord:Tuple[Optional[int], Optional[int]] = (None, None)
 
         # -- mouse click [view_1] --
         self.app.view_1.canvas.get_tk_widget().bind("<Button 1>", self.track_1_left_down)      # left mouse click (down)
@@ -1721,11 +1658,11 @@ class ClickEvents():
         # -----------------------------------------------------------
 
         # -- click coordinate memory --
-        self.track_2_left_down_coord:Tuple[int, int] = (None, None)
-        self.track_2_left_up_coord:Tuple[int, int] = (None, None)
+        self.track_2_left_down_coord:Tuple[Optional[int], Optional[int]] = (None, None)
+        self.track_2_left_up_coord:Tuple[Optional[int], Optional[int]] = (None, None)
 
-        self.track_2_right_down_coord:Tuple[int, int] = (None, None)
-        self.track_2_right_up_coord:Tuple[int, int] = (None, None)
+        self.track_2_right_down_coord:Tuple[Optional[int], Optional[int]] = (None, None)
+        self.track_2_right_up_coord:Tuple[Optional[int], Optional[int]] = (None, None)
 
         # -- mouse click [view_2] --
         self.app.view_2.canvas.get_tk_widget().bind("<Button 1>", self.track_2_left_down)      # left mouse click (down)
@@ -1753,10 +1690,10 @@ class ClickEvents():
     # ---------------------------------------------------------------
 
     def track_1_left_down(self, event) -> None:
-        self.track_1_left_down_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_1_left_down_coord = (event.x, event.y)
 
     def track_1_left_up(self, event) -> None:
-        self.track_1_left_up_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_1_left_up_coord = (event.x, event.y)
 
         # -- incomplete action --------------------------------------
         if self.track_1_left_down_coord == (None, None) or self.track_1_left_up_coord == (None, None):
@@ -1777,6 +1714,9 @@ class ClickEvents():
                 print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
         # -- move bar -----------------------------------------------
+        elif any([x is None or len(x) == 0 for x in [self.app.data_1.y, self.app.data_2.y, self.app.data_5.df_midi]]) or self.app.data_1.fs is None:
+            messagebox.showerror(title="Error", message="Please load some data first! (audio + midi)")
+            return None
         else:
             # -- convert coordinates --
             x_from = self.app.convert_x_pos(self.track_1_left_down_coord[0])
@@ -1811,6 +1751,10 @@ class ClickEvents():
                         x_from=x_from, x_to=x_to
                         )
                     )
+
+                # -- disable dtw --
+                self.app.dtw_enabled = False
+
             else:
                 print("No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                     x0=self.track_1_left_down_coord[0], y0=self.track_1_left_down_coord[1],
@@ -1824,10 +1768,10 @@ class ClickEvents():
         self.track_1_left_up_coord == (None, None)
 
     def track_2_left_down(self, event) -> None:
-        self.track_2_left_down_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_2_left_down_coord = (event.x, event.y)
     
     def track_2_left_up(self, event) -> None:
-        self.track_2_left_up_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_2_left_up_coord = (event.x, event.y)
 
         # -- incomplete action --------------------------------------
         if self.track_2_left_down_coord == (None, None) or self.track_2_left_up_coord == (None, None):
@@ -1849,6 +1793,9 @@ class ClickEvents():
                 print(f"A new bar was inserted at: {event.x} {event.y} | {x_pos}")
 
         # -- move bar -----------------------------------------------
+        elif any([x is None or len(x) == 0 for x in [self.app.data_1.y, self.app.data_2.y, self.app.data_5.df_midi]]) or self.app.data_1.fs is None:
+            messagebox.showerror(title="Error", message="Please load some data first!  (audio + midi)")
+            return None
         else:
             # -- convert coordinates --
             x_from = self.app.convert_x_pos(self.track_2_left_down_coord[0])
@@ -1893,6 +1840,10 @@ class ClickEvents():
                         x_from=x_from, x_to=x_to
                         )
                     )
+    
+                # -- disable dtw --
+                self.app.dtw_enabled = False
+    
             else:
                 print("No bar to move from: {x0} {y0} to {x1} {y1} | {x_from} -> {x_to}".format(
                     x0=self.track_2_left_down_coord[0], y0=self.track_2_left_down_coord[1],
@@ -1910,10 +1861,10 @@ class ClickEvents():
     # ---------------------------------------------------------------
 
     def track_1_right_down(self, event) -> None:
-        self.track_1_right_down_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_1_right_down_coord = (event.x, event.y)
 
     def track_1_right_up(self, event) -> None:
-        self.track_1_right_up_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_1_right_up_coord = (event.x, event.y)
 
         # -- incomplete action --------------------------------------
         if self.track_1_right_down_coord == (None, None) or self.track_1_right_up_coord == (None, None):
@@ -1940,10 +1891,10 @@ class ClickEvents():
         self.track_1_right_up_coord == (None, None)
 
     def track_2_right_down(self, event) -> None:
-        self.track_2_right_down_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_2_right_down_coord = (event.x, event.y)
     
     def track_2_right_up(self, event) -> None:
-        self.track_2_right_up_coord:Tuple[int, int] = (event.x, event.y)
+        self.track_2_right_up_coord = (event.x, event.y)
 
         # -- incomplete action --------------------------------------
         if self.track_2_right_down_coord == (None, None) or self.track_2_right_up_coord == (None, None):
@@ -2051,14 +2002,15 @@ class MusicPlayer():
         self.playing_state:bool = False          # is the track currently being played or paused? (required self.play_button_pressed)
         self.steps:float = 0.2                   # step size in seconds to display track progression in the wave plot
 
-        self.slider_pos:Optional[float] = None   # current position of the track progression slider in the wave plot in seconds
-        self.slider_pos_last:Optional[float] = None # last position of the track progression slider in the wave plot in seconds
-        self.override_time:bool = False          # ugly variable to avoid bug in pygame.mixer.music.get_pos() where first result after pausing is incorrect & should be dropped
+        self.slider_pos:Union[int,float] = 0      # current position of the track progression slider in the wave plot in seconds
+        self.slider_pos_last:Union[int,float] = 0 # last position of the track progression slider in the wave plot in seconds
+        self.override_time:bool = False           # ugly variable to avoid bug in pygame.mixer.music.get_pos() where first result after pausing is incorrect & should be dropped
 
         # -- init music --
         mixer.init()
 
-        # -- ability to insert bars on slider pos --
+        # -- ability to insert bars on current slider pos during playback --
+        # # too much lag to be useful
         self.app.bind('<b>', self.insert_bar)
 
     def load_track(self) -> None:
@@ -2067,55 +2019,41 @@ class MusicPlayer():
             self.stop()
 
         # -- loading track --
-        if self.app.menubar.track.get() == 1:
-            if self.app.data_1.filename:
-                mixer.music.load(self.app.data_1.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
-                self.get_track_len()
-                self.track_loaded = True
-            else:
-                self.track_loaded = False
-                print("No music file to play")
-        elif self.app.menubar.track.get() == 2:
-            if self.app.data_2.filename:
-                mixer.music.load(self.app.data_2.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
-                self.get_track_len()
-                self.track_loaded = True
-            else:
-                self.track_loaded = False
-                print("No music file to play")
+        if self.app.data_1.filename:
+            mixer.music.load(self.app.data_1.filename) # 32-bit wav files are not supported !! use 16-bit wav files or mp3 instead !!
+            self.get_track_len()
+            self.track_loaded = True
         else:
-            raise ValueError("Expecting a value of 1 or 2 for self.app.menubar.track")
+            self.track_loaded = False
+            print("No music file to play")
 
     def get_track_len(self) -> None:
-        if self.app.menubar.track.get() == 1:
-            if self.app.data_1.filename:
-                if self.app.data_1.filename[-4:] in [".mp3", ".wav", ".ogg"]:
-                    self.track_length = mixer.Sound(self.app.data_1.filename).get_length()
-                else:
-                    print("get_track_len only supports mp3, wav and ogg")
+        if self.app.data_1.filename:
+            if self.app.data_1.filename[-4:] in [".mp3", ".wav", ".ogg"]:
+                self.track_length = mixer.Sound(self.app.data_1.filename).get_length()
             else:
-                self.track_loaded = False
-                print("No music file to get length of")
-        elif self.app.menubar.track.get() == 2:
-            if self.app.data_2.filename:
-                if self.app.data_2.filename[-4:] in [".mp3", ".wav", ".ogg"]:
-                    self.track_length = mixer.Sound(self.app.data_2.filename).get_length()
-                else:
-                    print("get_track_len only supports mp3, wav and ogg")
-            else:
-                self.track_loaded = False
-                print("No music file to get length of")
+                print("get_track_len only supports mp3, wav and ogg")
         else:
-            raise ValueError("Expecting a value of 1 or 2 for self.app.menubar.track")
+            self.track_loaded = False
+            print("No music file to get length of")
 
     def play(self) -> None:
-        if self.track_loaded is True:
-            mixer.music.play(start=self.app.menubar.start_pos.get()) # Note: you can only start at a different position with mp3 & ogg files, NOT with wav files !!
-            self.play_button_pressed = True
-            self.playing_state = True
-            self.playing()
-        else:
-            print("Please load track before playing")
+        # -- load audiofile if not loaded yet --
+        if self.track_loaded is False:
+            try:
+                self.app.mp.load_track()
+            except Exception:
+                if self.app.data_1.filename.endswith('.wav'):
+                    messagebox.showinfo(title="Info", message="Use 16-bit wav files or mp3 files to enable audio playback.")
+                else:
+                    messagebox.showinfo(title="Info", message="Use wav or mp3 files to enable audio playback.")
+                return None
+        
+        # -- play music --
+        mixer.music.play(start=self.app.menubar.start_pos.get()) # Note: you can only start at a different position with mp3 & ogg files, NOT with wav files !!
+        self.play_button_pressed = True
+        self.playing_state = True
+        self.playing()
     
     def playing(self) -> None:
         """
@@ -2153,19 +2091,11 @@ class MusicPlayer():
         print(datetime.fromtimestamp(self.slider_pos).strftime('%M:%S.%f'))
 
         # -- insert the new bar --
-        if self.app.menubar.track.get() == 1:
-            self.app.view_1.insert_bar(x=self.slider_pos, color='green')
-        elif self.app.menubar.track.get() == 2:
-            self.app.view_2.insert_bar(x=self.slider_pos, color='green')
-        else:
-            raise ValueError("expecting self.app.menubar.track.get() to be either 1 or 2")
+        self.app.view_1.insert_bar(x=self.slider_pos, color='green')
         
         # -- remove the last bar --
         try:
-            if self.app.menubar.track.get() == 1:
-                self.app.view_1.delete_bar(x=self.slider_pos_last)
-            elif self.app.menubar.track.get() == 2:
-                self.app.view_2.delete_bar(x=self.slider_pos_last)
+            self.app.view_1.delete_bar(x=self.slider_pos_last)
         except Exception:
             pass
 
@@ -2215,33 +2145,20 @@ class MusicPlayer():
         # -- reset constants --
         self.play_button_pressed = False
         self.playing_state = False
-        self.slider_pos = None
+        self.slider_pos = 0
     
     def adjust_volume(self) -> None:
         mixer.music.set_volume(self.app.menubar.volume.get()/100)
 
+    # too much lag & reaction time to be useful (approx. 0.2 sec delay?)
     def insert_bar(self, event) -> None:
         if self.playing_state is True:
             x_pos = mixer.music.get_pos() / 1000 + self.app.menubar.start_pos.get() # seconds
-            if self.app.menubar.track.get() == 1:
-                self.app.bars_1.insert_bar(x_pos)
-                
-                self.app.view_1.insert_bar(x_pos, 'blue')
-                self.app.view_3.insert_bar(x_pos, 'blue')
+            x_pos = max(0.2, x_pos - 0.2) # try to counter the lag (but may depend on the system)
+            self.app.bars_1.insert_bar(x_pos)
             
-            elif self.app.menubar.track.get() == 2:
-                self.app.bars_2.insert_bar(x_pos)
-
-                self.app.view_2.insert_bar(x_pos, 'blue')
-                self.app.view_4.insert_bar(x_pos, 'blue')
-                self.app.view_5.insert_bar(x_pos, 'blue')
-            else:
-                raise ValueError("expects value of 1 or 2 for self.app.menubar.track.get()")
-
-
-class MidiPlayer():
-    def __init__(self, parent:App) -> None:
-        self.app = parent
+            self.app.view_1.insert_bar(x_pos, 'blue')
+            self.app.view_3.insert_bar(x_pos, 'blue')
 
 
 # -------------------------------------------------------------------
