@@ -975,7 +975,7 @@ class Bars1():
         self.app = parent
 
         # -- edit memory --
-        self.bars:List[Optional[Union[int,float]]] = []
+        self.bars:List[Union[int,float]] = []
 
     # -- edit bar dataset -------------------------------------------
 
@@ -1092,7 +1092,7 @@ class Bars2():
         self.app = parent
 
         # -- edit memory --
-        self.bars:List[Optional[Union[int,float]]] = []
+        self.bars:List[Union[int,float]] = []
 
     # -- edit bar dataset -------------------------------------------
 

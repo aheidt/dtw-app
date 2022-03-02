@@ -1,16 +1,13 @@
 # custom:
 midi_files/
 wav_files/
-Heart Asks Pleasure First/
 *.mid
 *.wav
 *.mp3
 *.mp4
 *.data
-*.png
 *.blend*
 *.bat
-!demo.data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
