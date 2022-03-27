@@ -10,6 +10,7 @@ Via drag and drop you can manually shift the time series of the midi file.</br>
 When done, simply export the midi file.
 
 ## Installation
+- requires a 64-bit version of Python 3 
 - install all requirements listed in the ``requirements.txt``
 - you need `ffmpeg.exe` on PATH
 - run the `app.py` file
@@ -30,9 +31,17 @@ Description of the 5 plots:
 Load the following 3 files:
 - audio file you want to align the midi
 - audio file that you generated from the midi
-- midi file
+- midi file (with 1 track only & 120 BPM 4/4)
 
-Note: Instead of .mp3 you can also use .wav files.</br>
+Note 1: Instead of .mp3 you can also use .wav files.</br>
+Note 2: If your midi file has more tracks, delete the remaining tracks or merge them to a single track with another software, e.g. using MidiEditor (available for free: https://www.midieditor.org/).</br>
+Note 3: If your midi has a different tempo than 120 BPM 4/4, then:
+1) open the dtw-app and import the original audio and the midi 
+2) adjust the length of the midi so that it matches the original audio 
+3) export the midi 
+4) restart the dtw-app 
+5) import the originial audio, the new midi and the new audio generated from the new midi.
+
 When loading the audio files, the chroma features are computed simultaneously.</br>
 The computation may take a minute depending on the length of the song and will freeze the app during that time.
 
@@ -43,8 +52,8 @@ You can adjust this by changing the `downsampling_factor_1` and `downsampling_fa
 
 ### Step 2
 Once all 3 files were successfully loaded, go ahead and apply the dtw algorithm.</br>
-It will take a minute to complete.</br>
-Once it is complete, plots 2, 4 and 5, which together represent the midi, will show updated data.</br>
+It will take a minute to complete. For good results, the midi and original audio should have approximately the same length (+/- 15%).</br>
+Once it is completed, plots 2, 4 and 5, which together represent the midi, will show updated data.</br>
 It should now be more closely aligned to plots 1 and 3, which represent the audio we want the midi to be aligned to.
 
 ![tab 2 of menu](./img/Tab_2.PNG)
